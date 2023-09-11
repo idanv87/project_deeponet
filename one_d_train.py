@@ -35,8 +35,8 @@ from main import model
 
 
 from constants import Constants
-from package.schedualer import LRScheduler, EarlyStopping
-from package.my_packages import *
+from packages.schedualer import LRScheduler, EarlyStopping
+from packages.my_packages import *
 
 
 
