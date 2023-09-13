@@ -12,7 +12,7 @@ from matplotlib import pyplot
 import numpy as np
 import scipy
 import torch
-from torch.utils.data import Dataset, DataLoader
+
 import sys
 from sklearn.cluster import KMeans
 from scipy.interpolate import Rbf
@@ -22,8 +22,8 @@ import pandas as pd
 
 
 
-from geometry.geometry import Polygon
-from utils import extract_path_from_dir, save_eps, plot_figures
+from geometry import Polygon, Annulus
+from utils import extract_path_from_dir, save_eps, plot_figures, grf
 
 from constants import Constants
 
@@ -39,29 +39,19 @@ def loss(a,*args):
 def create_data(domain):
     x=domain['interior_points'][:,0]
     y=domain['interior_points'][:,1]
-
-    x_hot=domain['hot_points'][:,0]
-    y_hot=domain['hot_points'][:,1]
-
-
     M=domain['M']
+    angle_fourier=domain['angle_fourier']
+    T=domain['translation']
     A = (-M - Constants.k* scipy.sparse.identity(M.shape[0]))
     test_functions=domain['radial_basis']
     V=[func(np.array([x, y]).T) for func in test_functions]
     F=[v for v in V]
-    psi=[scipy.sparse.linalg.spsolve(A,b) for b in F]
-
-    V_hot=[func(np.array([x_hot, y_hot]).T) for func in test_functions]
-    F_hot=[v for v in V_hot]
+    U=[scipy.sparse.linalg.spsolve(A,b) for b in F]
 
     
-    moments=domain['moments']
-    moments_x=np.array([m.real/len(domain['generators']) for m in moments])
-    moments_y=np.array([m.imag/len(domain['generators']) for m in moments])
-    angle_fourier=domain['angle_fourier']
 
 
-    return x,y,F,F_hot, psi, moments_x, moments_y, angle_fourier
+    return x,y,F, U, angle_fourier, T
 
 def expand_function(f,domain):
     # f is a vector of f evaluated on the domain points
@@ -70,10 +60,18 @@ def expand_function(f,domain):
     # base_rect=torch.load(Constants.path+'/base_polygon/base_rect.pt')
     x=domain['interior_points'][:,0]
     y=domain['interior_points'][:,1]
-    basis=base_rect['hot_radial_basis']
-  
+    basis=base_rect['radial_basis']
+    # plt.scatter(x,y,c=basis[10](np.array([x, y]).T))
+    # plt.show()
     phi=np.array([func(np.array([x, y]).T) for func in basis]).T
-    return np.linalg.solve(phi.T@phi,phi.T@f)
+    a=np.linalg.solve(phi.T@phi,phi.T@f)
+    approximation=np.sum(np.array([a[i]*func(np.array([x, y]).T) for i,func in enumerate(basis)]).T,axis=1)
+    error=np.linalg.norm(approximation-f)/np.linalg.norm(f)
+    if error>1e-10:
+         print(f'expansion of f is of error  {error}')
+         
+    
+    return a
 
     #   x0=np.random.rand(len(basis),1)
     # res = minimize(loss, x0, method='BFGS',args=(basis,f,x,y), options={'xatol': 1e-4, 'disp': True})
@@ -83,87 +81,54 @@ def expand_function(f,domain):
     
 
 
-def generate_domains():
+def generate_domains(S,T,n1,n2):
     names=extract_path_from_dir(Constants.path+'my_naca/')
     # for i,name in enumerate(os.listdir(Constants.path+'my_naca/')):
     for i,f in enumerate(names):
-            print(i)
+           
             file_name=f.split('/')[-1].split('.')[0]
 
             x1,y1=torch.load(f)
-
-            # with open(Constants.path+'naca/'+name, 'r') as infile:
-                # x1, y1 = np.loadtxt(infile, unpack=True, skiprows=1)
-
             lengeths=[np.sqrt((x1[(k+1)%x1.shape[0]]-x1[k])**2+ (y1[(k+1)%x1.shape[0]]-y1[k])**2) for k in range(x1.shape[0])]
             
             X=[]
             Y=[]
             for j in range(len(lengeths)):
                     if lengeths[j]>0:
-                        X.append(x1[j])
-                        Y.append(y1[j])
-             
-
+                        p=0.7*np.array([x1[j]-0.5,y1[j]])
+                        new_p=S@p+T
+                        X.append(new_p[0])
+                        Y.append(new_p[1])
             try:    
+                
                 # domain=Polygon(np.array([[0,0],[1,0],[2,1],[0,1]])) 
+                domain=Annulus(np.vstack((np.array(X),np.array(Y))).T, T)
 
-                domain=Polygon(np.vstack((np.array(X),np.array(Y))).T)
-                # Polygon.plot(domain.generators)
-                domain.create_mesh(0.1)
-                # domain.plot_geo()
-                domain.save(Constants.path+'polygons/'+str(file_name)+'.pt')
-
+                domain.create_mesh(0.2)
+                domain.plot_geo()
+                domain.save(Constants.path+'polygons/1150'+str(n1)+str(n2)+'.pt')
+                print('sucess')
+                domain.plot_geo(block=False)
             except:
-                pass    
+                print('failed')    
 
-
-def analyze_data():
-    names=extract_path_from_dir(Constants.path+'polygons/')
-    angles=[]
-    Mx=[]
-    My=[]
-    for i,name in enumerate(names):
-
-        domain=torch.load(name)
-       
-        Mx.append( [ s.real for s in domain['moments'] ])
-        My.append( [s.imag for s in domain['moments'] ])
-        angles.append(domain['angle_fourier'])
-    fig, axs = plt.subplots(3,3, figsize=(5, 5), facecolor='w', edgecolor='k')
-    fig.subplots_adjust(hspace = .5, wspace=.001)
-    axs = axs.ravel()
-    my_data=angles
-    for i in range(9):
-            axs[i].tick_params(left = False, right = False , labelleft = False ,
-                labelbottom = True, bottom = True)
-            axs[i].scatter(np.array([s[i] for s in my_data]),np.zeros((len(my_data))))
-            axs[i].set_title(f'mode number {i}')
-    plt.savefig(Constants.fig_path+'fourier_modes_domains_dist', format='eps',bbox_inches='tight')    
-    plt.show()     
-    return 1
-    
-
-
-def plot_polygon():
-     d=torch.load(Constants.path+'polygons/3250.pt')
-     domain=Polygon(d['generators'])
-     Polygon.plot(d['generators'], title='polygon 3250')
-     save_eps('pol3250.eps')
-
-     
 
 if __name__=='__main__':
-    #  plot_polygon()
-    #  analyze_data()
-    #  domain_coeff=analyze_data()
-    #  plt.show()
-    # base_domain=Polygon(np.array([[0,0],[1,0],[1,1],[0,1]]))
-    # base_domain.create_mesh(1/30)
+    pass
+
+    # base_domain=Polygon(np.array([[-1,-1],[1,-1],[1,1],[-1,1]]))
+    # # base_domain=Polygon(np.array([[0,0],[1,0],[1,1],[0,1]]))
+    # base_domain.create_mesh(0.2)
     # base_domain.plot_geo()
     # base_domain.save(Constants.path+'base_polygon/base_rect.pt')
-    generate_domains()
-  
+
+    for i,theta in enumerate(np.linspace(0,2*math.pi,10)):
+        for j,T in enumerate(0.9*grf(list(range(2)),10)):
+            S=np.array([[math.cos(theta), math.sin(theta)],[-math.sin(theta), math.cos(theta)]])
+            generate_domains(S,T,i,j)
+
+# base_rect=torch.load(Constants.path+'base_polygon/base_rect.pt')
+# print(base_rect['interior_points'].shape)
 
 
 

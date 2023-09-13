@@ -7,7 +7,7 @@ from tqdm import tqdm
 import argparse
 import time
 import datetime
-
+from scipy.stats import qmc
 
 import matplotlib.pyplot as plt
 import torch
@@ -59,7 +59,7 @@ epochs = Constants.num_epochs
 # optimizers
 optimizer = optim.Adam(model.parameters(), lr=lr,  weight_decay=1e-5)
 # loss function
-criterion = nn.L1Loss()
+# criterion = nn.L1Loss()
 criterion = norms.relative_L2
 
 # scheduler
@@ -195,6 +195,10 @@ def predict(model, dataloader, dataset, criterion):
 
         pred_loss = pred_running_loss/counter
         pred_acc = pred_running_acc/counter
+        try:
+            writer.add_scalar("test/test_loss", pred_loss, epoch)
+        except:
+            pass   
 
         return pred_loss, pred_acc
     

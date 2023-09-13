@@ -16,8 +16,7 @@ from sklearn.cluster import KMeans
 from scipy.interpolate import Rbf
 from scipy.spatial.distance import euclidean, cityblock
 import cmath
-current_path=os.path.abspath(__file__)
-sys.path.append(current_path.split('deeponet')[0]+'deeponet/')
+
 from utils import *
 from constants import Constants
 # from coords import Map_circle_to_polygon
@@ -55,33 +54,13 @@ class mesh:
             X=np.vstack((point,nbhd))
             values=np.hstack((1,np.zeros(nbhd.shape[0])))
             self.p.append(scipy.interpolate.RBFInterpolator(X,values))
-
-def calc_coeff(vertices):
-    n = len(vertices)
-    a = []
-    Z = []
-    for v in vertices:
-        Z.append(complex_version(v))
-    for i in range(len(Z)):
-        exp1 = Z[(i-1) % len(Z)]-Z[i]
-        exp2 = Z[(i) % len(Z)]-Z[(i+1) % len(Z)]
-        a.append((exp1.conjugate()/exp1-exp2.conjugate()/exp2)*(1j/2))
-    return a, Z
-
-
-def calc_moment(k, a, z):
-    return np.sum([a[i]*(z[i]**k) for i in range(len(a))])
-
-
+            self.T=1000
 
 class Polygon:
     def __init__(self, generators):
         self.generators = generators
         self.n=self.generators.shape[0]
         self.geo = dmsh.Polygon(self.generators)
-        self.moments = [calc_moment(k, calc_coeff(self.generators)[
-                                    0], calc_coeff(self.generators)[1]) for k in range(300)]
-
         self.fourier_coeff = self.fourier()
         
         
@@ -108,31 +87,20 @@ class Polygon:
             @ (self.sc[1].star)
             @ self.sc[0].d
         )
+        self.interior_points=[]
+        self.interior_indices=[]
 
-        self.boundary_indices = [i for i in range(self.generators.shape[0])]
-        self.calc_boundary_indices()
-        self.interior_indices = list(
-            set(range(self.vertices.shape[0])) - set(self.boundary_indices)
-        )
-        self.interior_points = self.vertices[self.interior_indices]
-
-        self.hot_points = spread_points(30, self.interior_points)
-        self.hot_indices=[]
-        for i in range(self.vertices.shape[0]):
-            for j in range(self.hot_points.shape[0]):
-                if (self.vertices[i]== self.hot_points[j]).all()==True:
-                     self.hot_indices.append(i)
-        self.hot_indices=list(set(self.hot_indices))
+        for j,x in enumerate(X):
+            if (not on_boundary(x,self.geo)):
+                self.interior_points.append(x)
+                self.interior_indices.append(j)
         
-
+        self.interior_points=np.array(self.interior_points)
         self.ev = self.laplacian().real
         self.radial_functions=self.radial_basis()
-        self.hot_radial_functions=self.hot_radial_basis()
+    
 
-    def calc_boundary_indices(self):
-        for i in range(self.generators.shape[0], (self.vertices).shape[0]):
-            if on_boundary(self.vertices[i], self.geo):
-                self.boundary_indices.append(i)
+
 
     def laplacian(self):
         return scipy.sparse.linalg.eigs(
@@ -158,14 +126,11 @@ class Polygon:
             "principal_ev": self.ev[-1], 
             "interior_points": self.interior_points,
             # "interior_points": self.interior_points[np.lexsort(np.fliplr(self.interior_points).T)],
-            # "hot_points": self.hot_points,
-            "hot_points": self.hot_points[np.lexsort(np.fliplr(self.hot_points).T)],
             "generators": self.generators,
             "M": self.M[self.interior_indices][:, self.interior_indices],
-            'moments': self.moments,
             'radial_basis':self.radial_functions,
-            'hot_radial_basis':self.hot_radial_functions,
              'angle_fourier':self.fourier_coeff,
+             'translation':self.T,
             "legit": True,
             'type': 'polygon'
         }
@@ -174,16 +139,12 @@ class Polygon:
     def plot2(self):
         plt.scatter(self.interior_points[:, 0],
                     self.interior_points[:, 1], color='black')
-        plt.scatter(self.hot_points[:, 0], self.hot_points[:, 1], color='red')
         plt.show()
 
     def radial_basis(self):
         m=mesh([self.vertices[i] for i in range(self.vertices.shape[0])])
         return [m.p[i] for i in self.interior_indices]
     
-    def hot_radial_basis(self):
-        m=mesh([self.vertices[i] for i in range(self.vertices.shape[0])])
-        return [m.p[i] for i in self.hot_indices]
     
     def fourier(self):
         x1=self.generators[:,0]
@@ -207,13 +168,7 @@ class Polygon:
         plot_polygon(ax, polygon, facecolor='white', edgecolor='red')
         
 
-    def plot_moments(self):
-        X=[self.moments[i].real for i in range(len(self.moments))]
-        Y=[self.moments[i].imag for i in range(len(self.moments))]
-        fig,ax=plt.subplots(1)
-        ax.plot(range(len(self.moments)), X, 'r', label='real part')
-        ax.plot(range(len(self.moments)), Y, 'b', label='imaginary part')
-        plt.legend()
+
         
     
     def plot_geo(self):
@@ -222,18 +177,32 @@ class Polygon:
 
 
 
+# geo= dmsh.Rectangle(-1, +1, -1, +1)- dmsh.Rectangle(-0.5, 0.5, -0.5, 0.5)
+
+# X, cells = dmsh.generate(geo, 0.2)
+# boundary=[]
+# ind=[]
+# for i,x in enumerate(X):
+#     if on_boundary(x,geo):
+#         boundary.append(x)
+#         ind.append(i)
+# plt.scatter(X[ind,0], X[ind,1]);plt.show()
+# dmsh.show(X, cells, geo)
+
+
+class Annulus(Polygon):
+    def __init__(self, generators,T):
+        self.generators = generators
+        self.n=self.generators.shape[0]
+        self.geo =dmsh.Rectangle(-1, 1, -1, 1)- dmsh.Polygon(self.generators)
+        self.fourier_coeff = self.fourier()
+        self.T=T
 
 
 
 
 
 
-    # for name in train_domains_path:
-    #     analyze_momnets(name,'r')
-    # for name in test_domains_path:
-    #     analyze_momnets(name,'b')
-
-    # plt.show()
 
 
 

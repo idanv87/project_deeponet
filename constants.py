@@ -62,9 +62,9 @@ class Constants:
     test_path= path+'test_set/'
 
 
-    k=70
+    k=25
     h = 1/30
-    batch_size =16
+    batch_size=32
     num_epochs = 400
   
 
@@ -91,13 +91,14 @@ class Constants:
         os.makedirs(path+'hints_polygons')
 
 def generate_my_naca():
+ 
         k=50
-        for  i in range(1,4):
-            for j in range(1,4):
+        for  i in range(1,2):
+            for j in range(1,2):
             # foil = Airfoil.NACA4('5820')
             
                 f=foil_function(i/100,j/10,k/100)
-                x=np.linspace(0,1,10)
+                x=np.linspace(0,1,4)
                 xu,yu,xl,yl=f(x)
 
                 X=np.hstack((xu,np.flip(xl[1:-1])))
@@ -108,14 +109,15 @@ def generate_my_naca():
 
 if __name__=='__main__':
     m=1
-    p=7
+    p=1
     k=50
     f=foil_function(m/100,p/10,k/100)
-    x=np.linspace(0,1,10)
+    x=np.linspace(0,1,4)
     xu,yu,xl,yl=f(x)
 
     X=np.hstack((xu,xl[1:-1]))
     Y=np.hstack((yu,yl[1:-1]))
     plt.scatter(X,Y)
+    plt.show(block=False)
 
   
