@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import Rbf
+from tabulate import tabulate
 
 class norms:
     def __init__(self): 
@@ -76,15 +77,98 @@ class interpolation_2D:
     
     
 
-def plot_table(headers, data):
+def plot_table(headers, data, path=None):
+    try:
+       
+        print(tabulate(data, headers=headers, tablefmt='orgtbl'), file=path)
+    except:
+        print(tabulate(data, headers=headers, tablefmt='orgtbl'))
+    
 
-    # data = np.array([[1, 2, 1, 'x'],
-    # ['x', 1, 1, 'x'],
-    # [1, 'x', 0, 1],
-    # [2, 0, 2, 1]])
-    format_row = "{:>12}" * (len(headers) + 1)
-    print(format_row.format("", *headers))
-    for head, row in zip(headers, data):
-        print(format_row.format(head, *row))    
+
+
+
+def gmres(A, b, x0, nmax_iter, tol):
+    b_start=b.copy()
+    r = b - np.asarray(A@x0).reshape(-1)
+
+    x = []
+    q = [0] * (nmax_iter)
+
+    x.append(r)
+
+    q[0] = r / np.linalg.norm(r)
+
+    h = np.zeros((nmax_iter + 1, nmax_iter))
+
+    for k in range(min(nmax_iter, A.shape[0])):
+        y = np.asarray(A@ q[k]).reshape(-1)
+
+        for j in range(k + 1):
+            h[j, k] = np.dot(q[j], y)
+            y = y - h[j, k] * q[j]
+        h[k + 1, k] = np.linalg.norm(y)
+        if (h[k + 1, k] != 0 and k != nmax_iter - 1):
+            q[k + 1] = y / h[k + 1, k]
+
+        b = np.zeros(nmax_iter + 1)
+        b[0] = np.linalg.norm(r)
+
+        result = np.linalg.lstsq(h, b)[0]
+
+        C=np.dot(np.asarray(q).transpose(), result) + x0
+        x.append(C)
+        if (np.linalg.norm(A@C-b_start)/np.linalg.norm(b_start))<tol:
+            return C,k
+
+
+    return C, k
+
+
+
+class Plotter:
+    def __init__(self,headers,data_x,data_y,labels, **kwargs) -> None:
+        self.headers=headers
+        self.data_x=data_x
+        self.data_y=data_y
+        self.colors=['red','blue','green','black', 'orange']
+        self.linestyles=['solid']*5
+        self.labels=labels
+        self.fig, self.ax=plt.subplots()
+
+        try:
+            self.fig.suptitle(kwargs['title'])
+        except:
+            pass    
+        
+    def plot_figure(self):
+        
+        for i in range(len(self.data_x)):
+            self.plot_single(self.headers,[self.data_x[i],self.data_y[i]],color=self.colors[i],label=self.labels[i])
+        if len(self.data_x)>1:
+            self.fig.legend()
+        self.ax.set_yscale("log")   
+
+        plt.show(block=False)
+            
+    
+    def save_figure(self, path):
+         self.fig.savefig(path, format='eps', bbox_inches='tight')
+         plt.show(block=True)
+
+    def plot_single(self,headers, data, **kwargs ):
+            try:
+                self.ax.plot(data[0],data[1],label=kwargs['label'],color=kwargs['color'])
+            except:
+                self.ax.plot(data[1],label=kwargs['label'],color=kwargs['color'])    
+            self.ax.set_xlabel(headers[0])
+            self.ax.set_ylabel(headers[1])
+            plt.show(block=False)
+
+
+    
+def example():
+    d={'a':1, 'b':2}
+    return d
 
 

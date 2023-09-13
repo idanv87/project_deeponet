@@ -7,7 +7,7 @@ import math
 from matplotlib.offsetbox import AnchoredText
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.sparse.linalg import gmres
+
 import scipy
 import torch
 import torch.nn as nn
@@ -16,50 +16,64 @@ from torch.autograd.functional import jacobian
 import sys
 from constants import Constants
 
-from utils import create_D2, grf
-from main import domain
+from utils import create_D2, grf, plot_solution_and_fourier
+
 from one_d_data_set import create_loader
 from packages.my_packages import *
 
-main_domain=domain.vertices
-domain = np.linspace(0, 1, 60)
 
-L=create_D2(domain)
+main_domain=np.linspace(0,1,30)
+# torch.save(run_hints(func, J=20, J_in=[0,1], hint_init=True), Constants.outputs_path+'modes_error.pt')
 
-    
 
-def deeponet(model, func):
+def deeponet(domain, model, func):
     x=domain[1:-1]
-    s1=func(main_domain[1:-1])
+    s0=func(main_domain[1:-1])
     with torch.no_grad():
         y=torch.tensor(domain[1:-1],dtype=torch.float32).reshape(x.shape[0],)
-        s_temp=torch.tensor(s1.reshape(1,s1.shape[0]),dtype=torch.float32).repeat(x.shape[0],1)
+        s_temp=torch.tensor(s0.reshape(1,s0.shape[0]),dtype=torch.float32).repeat(x.shape[0],1)
         pred2=model([y,s_temp])
     return pred2.numpy()
 
-def network(model,func, J, J_in, hint_init):
+def network(domain, model,func, J, J_in, hint_init):
 
     A = (-L - Constants.k* scipy.sparse.identity(L.shape[0]))
-    
+
+    # m=10
+    # x=domain[1:-1]
+    # b=6*x-Constants.k*(x-x**3)
+    # u=x-x**3
+    # est=scipy.sparse.linalg.spsolve(A, b)
+    # plt.plot(domain[1:-1],est,'b',linestyle='dashed')
+    # plt.plot(domain[1:-1],u,'-r')
+    # plt.show()
    
     ev,V=scipy.sparse.linalg.eigs(-L,k=15,return_eigenvectors=True,which="SR")
     # print(ev)
 
     b=func(domain[1:-1])
     solution=scipy.sparse.linalg.spsolve(A, b)
-    gmres_solution,exit_cod=gmres(A, b, x0=None, tol=1e-13, restart=None, maxiter=4000)
-    print(np.linalg.norm(A@gmres_solution-b)/np.linalg.norm(b))
-    print(exit_cod)
+    tol=np.linalg.norm(A@solution-b)/np.linalg.norm(b)
+    
+    gmres_err=0
+    # tol=np.linalg.norm(A@solution-b)/np.linalg.norm(b)
+    # gmres_solution, iter=gmres(A, b, b*0, nmax_iter=N, tol=tol*10)
+    # gmres_err=np.linalg.norm(gmres_solution-solution)/np.linalg.norm(solution)
+    
+    # print(gmres_err)
+    # print(iter)
+
+  
     solution_expansion=[np.dot(solution,V[:,s]) for s in range(V.shape[1])]
 
 
     if hint_init:
-        x=deeponet(model, func)
+        x=deeponet(domain, model, func)
         
     else:
-        x=deeponet(model, func)*0
+        x=deeponet(domain, model, func)*0
 
-    tol=[]
+
     res_err=[]
     err=[]
     fourier_err=[]
@@ -84,7 +98,7 @@ def network(model,func, J, J_in, hint_init):
             factor = np.max(abs(grf(main_domain, 1)))/np.max(abs(A@x_0-b))
            
             x_temp = x_0*factor + \
-                deeponet(model, scipy.interpolate.interp1d(
+                deeponet(domain, model, scipy.interpolate.interp1d(
                     domain[1:-1], (b-A@x_0)*factor, kind='cubic'))
             x = x_temp/factor
 
@@ -93,18 +107,22 @@ def network(model,func, J, J_in, hint_init):
         else:
             x = Gauss_zeidel(A.todense(), b, x_0, theta)[0]
 
-        print(np.linalg.norm(A@x-b)/np.linalg.norm(b))
+        # print(np.linalg.norm(A@x-b)/np.linalg.norm(b))
+
         res_err.append(np.linalg.norm(A@x-b)/np.linalg.norm(b))
 
         err.append(np.linalg.norm(x-solution)/np.linalg.norm(solution))
 
-        tol.append(np.linalg.norm(x-x_0))
-        if (res_err[-1] < 1e-13) and (err[-1] < 1e-13):
-            return (err, res_err, fourier_err, x_k, solution, solution_expansion, x_expansion, J, J_in, hint_init)
+
+        d={'N':N, 'err':err, 'res_err':res_err, 'fourier_err':fourier_err, 
+       'x_k':x_k,'solution':solution, 'solution_expansion':solution_expansion, 
+       'x_expansion':x_expansion, 'J':J, 'J_in':J_in,'hint_init': hint_init, 'gmres_err':gmres_err}
+        # if (res_err[-1] < (tol*10)) or (res_err[-1] > (10000)) :
+        #     return d
 
     # torch.save(x, Constants.path+'pred.pt')
 
-    return (err, res_err, fourier_err, x_k, solution, solution_expansion, x_expansion, J, J_in, hint_init)
+    return d
 
 
 experment_path = Constants.path+'runs/'
@@ -112,107 +130,52 @@ best_model = torch.load(experment_path+'best_model.pth')
 model.load_state_dict(best_model['model_state_dict'])
 
 
-def run_hints(func, J, J_in, hint_init):
-    return network(model, func, J, J_in, hint_init)
-    # torch.save([ err_net, res_err_net], Constants.path+'hints_fig.pt')
+def run_hints(domain, func, J, J_in, hint_init):
+    d= network(domain, model, func, J, J_in, hint_init)
+    return d
 
 
-def plot_solution_and_fourier(times, path, eps_name):
-    e_deeponet, r_deeponet, fourier_deeponet, x_k, solution,  solution_expansion, x_expansion, J, J_in, hint_init = torch.load(
-        path)
-
-    modes = [1, 6, 10]
-    colors = ['blue', 'green', 'red']
-    fig0, ax0 = plt.subplots(1, 3)
-    [ax0[k].plot(list(range(len(fourier_deeponet[:50]))), [f[modes[k]-1]
-                 for f in fourier_deeponet[:50]], color=colors[k], label=str(modes[k])) for k in range(3)]
-    ax0[0].set_title('mode=1')
-    ax0[1].set_title('mode=6')
-    ax0[2].set_title('mode=10')
-    ax0[0].set_xlabel('iteration')
-    ax0[0].set_ylabel('error')
-    ax0[1].set_yticks([])
-    ax0[2].set_yticks([])
-
-    times = np.asarray(times)
-    all_modes = list(range(1, len(fourier_deeponet[0])+1))
-    fig1, ax1 = plt.subplots(5, 5)
-    fig2, ax2 = plt.subplots(5, 5)
-    fig3, ax3 = plt.subplots()   # should be J+1
-    fig1.supxlabel('x')
-    fig2.supxlabel('mode')
-    fig1.suptitle('solution')
-    fig2.suptitle('fourier coefficients')
-    fig3.suptitle('relative error')
-    ind = times.reshape((5, 5))
-    counter = 0
-    for i in range(ind.shape[0]):
-        for j in range(ind.shape[1]):
-            ax1[i, j].plot(domain[1:-1], x_k[times[counter]],
-                           'b', label='hints')
-            ax1[i, j].plot(domain[1:-1], solution, color='r',
-                           label='analytic', linestyle='dashed')
-            bbox = dict(boxstyle='round', facecolor='white', alpha=0.9)
-            ax1[i, j].text(0.8, 0.9, f'iter={times[counter]}', transform=ax1[i,
-                           j].transAxes, fontsize=6, ha='left', va='top', bbox=bbox)
-            ax2[i, j].text(0.8, 0.9, f'iter={times[counter]}', transform=ax2[i,
-                           j].transAxes, fontsize=6, ha='left', va='top', bbox=bbox)
-            ax2[i, j].plot(all_modes, x_expansion[times[counter]], 'b')
-            ax2[i, j].plot(all_modes, solution_expansion,
-                           color='r', linestyle='dashed')
-            if j > 0:
-                ax1[i, j].set_yticks([])
-                ax2[i, j].set_yticks([])
-            if (i+1) < ind.shape[0]:
-                ax1[i, j].set_xticks([])
-                ax2[i, j].set_xticks([])
-            if counter == 0 and hint_init:
-                ax1[i, j].text(0.5, 0.5, 'Hints', transform=ax2[i, j].transAxes, fontsize=6,
-                               ha='left', va='top', bbox=dict(boxstyle='round', facecolor='green', alpha=0.5))
-                ax2[i, j].text(0.5, 0.5, 'Hints', transform=ax2[i, j].transAxes, fontsize=6,
-                               ha='left', va='top', bbox=dict(boxstyle='round', facecolor='green', alpha=0.5))
-            if counter == 0 and (not hint_init):
-                ax1[i, j].text(0.5, 0.5, 'zero_init', transform=ax2[i, j].transAxes, fontsize=6,
-                               ha='left', va='top', bbox=dict(boxstyle='round', facecolor='green', alpha=0.5))
-                ax2[i, j].text(0.5, 0.5, 'zero_init', transform=ax2[i, j].transAxes, fontsize=6,
-                               ha='left', va='top', bbox=dict(boxstyle='round', facecolor='green', alpha=0.5))
-            if (counter > J_in[-1]) and ((counter % J) in J_in):
-
-                ax1[i, j].text(0.5, 0.5, 'Hints', transform=ax2[i, j].transAxes, fontsize=6,
-                               ha='left', va='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-                ax2[i, j].text(0.5, 0.5, 'Hints', transform=ax2[i, j].transAxes, fontsize=6,
-                               ha='left', va='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-            counter += 1
-    ax3.plot(e_deeponet, 'g')
-    # ax3.plot(r_deeponet,'r',label='res.err')
-    # ax3.legend()
-    ax3.set_xlabel('iteration')
-    ax3.set_ylabel('error')
-    ax3.text(0.9, 0.1, f'final_err={e_deeponet[-1]:.2e}', transform=ax3.transAxes, fontsize=6,
-             ha='left', va='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.9))
-
-    fig0.savefig(eps_name+'all_fourier.eps', format='eps', bbox_inches='tight')
-    fig1.savefig(eps_name+'sol.eps', format='eps', bbox_inches='tight')
-    fig2.savefig(eps_name+'four.eps', format='eps', bbox_inches='tight')
-    fig3.savefig(eps_name+'errors.eps', format='eps', bbox_inches='tight')
-    plt.show(block=True)
-    return 1
 
 
-func = scipy.interpolate.interp1d(domain[1:-1],
-                                  10*np.sin(10*(math.pi)*(domain[1:-1])) +
-                                  10*np.sin(6*(math.pi)*(domain[1:-1])) +
-                                  1*np.sin((math.pi)*(domain[1:-1])), kind='cubic')
+# func=scipy.interpolate.interp1d(domain[1:-1],domain[1:-1]*(1-domain[1:-1]**2),kind='cubic')
+output=[]
+N=120
+domain = np.linspace(0, 1, N)
+
+func=scipy.interpolate.interp1d(domain, grf(domain,1,mu=0.4,sigma=0.7))
+# func = scipy.interpolate.interp1d(domain[1:-1], np.sin(10*(math.pi)*(domain[1:-1])) , kind='cubic')
+L=create_D2(domain)
+
+# [2, 5,15,20 ]
+output=[]
+
+for j in [ 10,15,20,30 ]:
+    # d=run_hints(domain, func, J=j, J_in=[0], hint_init=True)
+    # torch.save(d, Constants.outputs_path+str(j)+'.pt')
+    output.append(torch.load(Constants.outputs_path+str(j)+'.pt'))
+headers=['iterations', 'error']
+data_x=[None for o in output] 
+data_y=[o['err'] for o in output] 
+
+labels=['J='+str(o['J']) for o in output]
+P=Plotter(headers,data_x,data_y,labels, title=f'N={N}, k={Constants.k}')
+P.plot_figure()
+P.save_figure(Constants.eps_fig_path+'error_iter_different_J_N_'+str(N)+'_k_'+str(Constants.k)+'.eps')
+# plot_table(['J','k', 'iter.', 'err', 'N'],output, Constants.outputs_path+'sin1_N_240_k_25.txt')
+
+
+
+
+
 # func=scipy.interpolate.interp1d(domain[1:-1],  grf(domain[1:-1],1), kind='cubic')
 # F,U=torch.load(Constants.outputs_path+'data.pt')
 # func=scipy.interpolate.interp1d(domain[1:-1],
 #                                 F[0]
 #                                 , kind='cubic')
-func = scipy.special.legendre(10)
+# func = scipy.special.legendre(10)
 
 
-torch.save(run_hints(func, J=40, J_in=[0], hint_init=True), Constants.outputs_path+'modes_error.pt')
-plot_solution_and_fourier(list(range(0,0+25)),Constants.outputs_path+'modes_error.pt', Constants.eps_fig_path+ 'one_d_x0_J=8_Jin=012_modes=1')
+
 
 
 
