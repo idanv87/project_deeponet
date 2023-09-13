@@ -41,7 +41,7 @@ def generate_sample(M, F, psi):
      return np.sum(x1, axis=0), np.sum(x2, axis=0)
 
 
-def generate_data(names,  save_path, number_samples):
+def generate_data(names,  save_path, number_samples,seed=0):
     # answer = input('Did you erase previous data? (y/n)')
     # if answer !='y':
     #     print('please erase')
@@ -54,7 +54,7 @@ def generate_data(names,  save_path, number_samples):
         domain=torch.load(name)
         xi,yi,F,psi, angle_fourier, translation=create_data(domain)
        
-        sample=grf(F,number_samples )
+        sample=grf(F,number_samples,seed )
         # sampler = qmc.Halton(d=len(F), scramble=False)
         # sample = 20*sampler.random(n=number_samples)-10
 
@@ -86,8 +86,8 @@ def generate_data(names,  save_path, number_samples):
                
     return X,Y        
 if __name__=='__main__':
-    X,Y=generate_data(train_names, Constants.train_path, number_samples=500)
-    X_test, Y_test=generate_data(test_names,Constants.test_path,1)
+    X,Y=generate_data(train_names, Constants.train_path, number_samples=500, seed=0)
+    X_test, Y_test=generate_data(test_names,Constants.test_path,1, seed=1)
 
 
 
@@ -101,8 +101,8 @@ Y_train=[s[1] for s in s_train]
 X_test=[s[0] for s in s_test]
 Y_test=[s[1] for s in s_test]
 
-
-if __name__=='__main__':
+if True:
+# if __name__=='__main__':
     train_dataset = SonarDataset(X_train, Y_train)
     train_size = int(0.8 * len(train_dataset))
     val_size = len(train_dataset) - train_size

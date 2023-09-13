@@ -14,66 +14,58 @@ import sys
 from scipy.interpolate import Rbf
 
 
-current_path=os.path.abspath(__file__)
-sys.path.append(current_path.split('deeponet')[0]+'deeponet/')
-
 from constants import Constants
 from utils import save_eps, plot_figures, grf
 from main import  SonarDataset, generate_sample
 from two_d_data_set import create_loader
 from draft import create_data, expand_function
 from geometry import Polygon
+from packages.my_packages import Gauss_zeidel, interpolation_2D
+from main import model
+
+
+experment_path=Constants.path+'runs/'
+best_model=torch.load(experment_path+'best_model.pth')
+model.load_state_dict(best_model['model_state_dict'])
+
+hint_names=[Constants.path+'polygons/115000.pt']
+source_domain=torch.load(hint_names[0])
+domain=source_domain
+x_domain=domain['interior_points'][:,0]
+y_domain=domain['interior_points'][:,1]
+angle_fourier=domain['angle_fourier']
+translation=domain['translation']
+L=domain['M']
+xi,yi,F,psi, temp1, temp2=create_data(domain)
+
+sample=grf(F, 1, seed=1 )
+func=interpolation_2D(x_domain,y_domain,generate_sample(sample[0],F, psi)[0] )
 
 
 
-class interpolation_2D:
-    def __init__(self, X,Y,values):
-        self.rbfi = Rbf(X, Y, values)
-
-    def __call__(self, x,y):
-        return self.rbfi(x,y)
-
-   
-
-def Gauss_zeidel(A, b, x, theta):
-    ITERATION_LIMIT = 2
-    # x = b*0
-    for it_count in range(1, ITERATION_LIMIT):
-        x_new = np.zeros_like(x, dtype=np.float_)
-        # print(f"Iteration {it_count}: {x}")
-        for i in range(A.shape[0]):
-            s1 = np.dot(A[i, :i], x_new[:i])
-            s2 = np.dot(A[i, i + 1:], x[i + 1:])
-          
-            x_new[i] = (1-theta)*x[i]+ theta*(b[i] - s1 - s2) / A[i, i]
-
-        if np.linalg.norm(A@x-b)/np.linalg.norm(b)<1e-8:
-             x = x_new
-             return [x, it_count, np.linalg.norm(A@x-b)/np.linalg.norm(b)]
-            
-        x = x_new
-
-    return [x, it_count, np.linalg.norm(A@x-b)/np.linalg.norm(b)]
-
-
-#
-
-
-def deeponet(model, func,polyg, domain,  angle_fourier, translation):
+def deeponet(model, func):
     X_test_i=[]
     Y_test_i=[]
-    s0=func(domain[0], domain[1])
-    a=expand_function(func(domain[0], domain[1]), polyg)
+    a=expand_function(func(x_domain, y_domain), domain )
+    # with torch.no_grad():
+    #     y=torch.tensor(domain[1:-1],dtype=torch.float32).reshape(x_domain.shape[0],)
+    #     f_temp=torch.tensor(a.reshape(1,a.shape[0]),dtype=torch.float32).repeat(x_domain.shape[0],1)
+    #     tranlation_temp=torch.tensor(translation.reshape(1,translation.shape[0]),dtype=torch.float32).repeat(x_domain.shape[0],1)
+    #     angle_temp=torch.tensor(angle_fourier.reshape(1,angle.shape[0]),dtype=torch.float32).repeat(x_domain.shape[0],1)
+        
+    #     pred2=model([y,f_temp, tranlation_temp,y*0, angle_fourier])
+    # return pred2.numpy()
 
-    for j in range(len(domain[0])):
+
+    for j in range(domain['interior_points'].shape[0]):
         X_test_i.append([
-                        torch.tensor([domain[0][j],domain[1][j]], dtype=torch.float32), 
+                        torch.tensor([x_domain[j],y_domain[j]], dtype=torch.float32), 
                          torch.tensor(a, dtype=torch.float32),
                          torch.tensor(translation, dtype=torch.float32),
                          torch.tensor(0, dtype=torch.float32),
                          torch.tensor(angle_fourier, dtype=torch.float32)
                          ])
-        Y_test_i.append(torch.tensor(s0, dtype=torch.float32))
+        Y_test_i.append(torch.tensor(0, dtype=torch.float32))
 
     
     test_dataset = SonarDataset(X_test_i, Y_test_i)
@@ -91,54 +83,36 @@ def deeponet(model, func,polyg, domain,  angle_fourier, translation):
 
     return prediction
 
-def network(model, with_net, polyg, J):
-    domain=[polyg['interior_points'][:,0],polyg['interior_points'][:,1]]
-    angle_fourier=polyg['angle_fourier']
-    translation=polyg['translation']
-    L=polyg['M']
+def network(model, func, J, J_in, hint_init):
     A = (-L - Constants.k* scipy.sparse.identity(L.shape[0]))
     ev,V=scipy.sparse.linalg.eigs(-L,k=15,return_eigenvectors=True,which="SR")
     print(ev)
-
-    xi,yi,F,psi, temp1, temp2=create_data(polyg)
-    sample=grf(F, 1 )
-    
-    np.random.seed(1)
-    b=generate_sample(sample[0],F, psi)[0]# func=scipy.special.legendre(4)  
-  
-    func=interpolation_2D(domain[0],domain[1], b)
-
-
+    b=func(x_domain, y_domain)
     solution=scipy.sparse.linalg.spsolve(A, b)
-    predicted=deeponet(model, func, polyg, domain, angle_fourier, translation)
+    predicted=deeponet(model, func)
     # print(np.linalg.norm(solution-predicted)/np.linalg.norm(solution))
 
 
-    if with_net:
-        x=deeponet(model, func, polyg, domain, angle_fourier, translation)
+    if hint_init:
+        x=deeponet(model, func)
     else:
-        x=deeponet(model, func, polyg, domain, angle_fourier, translation)
+        x=x=deeponet(model, func)*0
 
-    solution_expansion= [np.dot(solution,V[:,s]) for s in range(V.shape[1])]
-    fourier_error=[]
     res_err=[]
     err=[]
     k_it=0
 
     for i in range(400):
         x_0 = x
-        # fourier_expansion=[np.dot(x,V[:,s]) for s in range(V.shape[1])]
-        # fourier_error.append([abs(f-g) for f,g in zip(fourier_expansion, solution_expansion)])
         k_it += 1
         theta=2/3
-        # if False:
-        if ( k_it%J==0) and with_net:  
-            # print(np.max(abs(generate_sample(sample[4])[0])))
-            xi,yi,F,psi, temp1, temp2 =create_data(polyg)
-            factor=np.max(abs(b))/np.max(abs(A@x_0-b))*np.max(abs(generate_sample(sample[0],F, psi)[0]))
-            # factor=99./np.max(abs(A@x_0-b))
+       
+        if (((k_it % J) in J_in) and (k_it > J_in[-1])):
+            
+            # factor = np.max(abs(generate_sample(sample[0],F, psi)[0]))/np.max(abs(A@x_0-b))
+            factor=np.max(abs(grf(F, 1)))/np.max(abs(A@x_0-b))
             x_temp = x_0*factor + \
-            deeponet(model, interpolation_2D(domain[0],domain[1],(b-A@x_0)*factor ), polyg, domain, angle_fourier, translation) 
+            deeponet(model, interpolation_2D(x_domain,y_domain,(b-A@x_0)*factor )) 
             x=x_temp/factor
             
             # x = x_0 + deeponet(model, scipy.interpolate.interp1d(domain[1:-1],(A@x_0-b)*factor ))/factor
@@ -155,99 +129,27 @@ def network(model, with_net, polyg, J):
 
 
    
-    return err, res_err,fourier_error 
+    return err, res_err
+
+def run_hints(func, J, J_in, hint_init):
+    return network(model, func, J, J_in, hint_init)
+    # torch.save([ err_net, res_err_net], Constants.path+'hints_fig.pt')
 
 
-
-def run_hints(model, polyg, file_name, J):
-    err_net, res_err_net, fourier_error =network(model,True, polyg,J)
-    torch.save([ err_net, res_err_net, fourier_error ], Constants.outputs_path+file_name)
-
-
-
-
-
-
+torch.save(run_hints(func, J=5, J_in=[0], hint_init=True), Constants.outputs_path+'modes_error.pt')
+# plot_solution_and_fourier(list(range(0,0+25)),Constants.outputs_path+'modes_error.pt', Constants.eps_fig_path+ 'one_d_x0_J=8_Jin=012_modes=1')
 
 
 
 
 
 
-def figure1():
 
 
-    fig, ax = plt.subplots()
-    err, res_err,fourier_error=torch.load(Constants.fig_path+'hints_fig3.pt')
-    ax=plot_figures(ax, err, title='relative error', label='J=3', color='red',xlabel='iterations',
-                    ylabel='error', text_hight=0.3
-                    )
-    err, res_err,fourier_error=torch.load(Constants.fig_path+'hints_fig5.pt')
-    ax=plot_figures(ax, err, title='relative error', label='J=5', color='green',xlabel='iterations',
-                    ylabel='error', text_hight=0.4
-                    )
-    err, res_err,fourier_error=torch.load(Constants.fig_path+'hints_fig10.pt')
-    ax=plot_figures(ax, err, title='relative error', label='J=10', color='blue',xlabel='iterations',
-                    ylabel='error', text_hight=0.5
-                    )
-
-    ax.annotate('',
-                xy = (400,0),
-                xytext =(320,0.3),
-                arrowprops = dict(facecolor = 'black', width = 0.2, headwidth = 8),
-                horizontalalignment = 'center') 
-    
-    save_eps('hints3250.eps')
-    plt.show(block=True)
-
-def figure2():
-    
-
-    fig, ax = plt.subplots(2,2)
-    fig.suptitle('fourier_error J=3')
-    err, res_err, fourier_error=torch.load(Constants.outputs_path+'hints_fig3.pt')
-    plot_figures(ax[0,0], [s[0] for s in fourier_error], title='mode=1', color='black',xlabel='',
-                    ylabel='error'
-                    )
-    plot_figures(ax[0,1], [s[1] for s in fourier_error], title='mode=2', color='black',xlabel='',
-                    ylabel='error'
-                    )
-    plot_figures(ax[1,0], [s[9] for s in fourier_error], title= 'mode=10', color='black',xlabel='iterations',
-                    ylabel='error'
-                    )
-    plot_figures(ax[1,1], [s[10] for s in fourier_error], title='mode=11', color='black',xlabel='iterations',
-                    ylabel='error'
-                    )
-
-                    
-    # ax.annotate('',
-    #             xy = (400,0),
-    #             xytext =(320,0.2),
-    #             arrowprops = dict(facecolor = 'black', width = 0.2, headwidth = 8),
-    #             horizontalalignment = 'center') 
-
-    
 
 
-    
-    save_eps('hints3250_fourier.eps')
-
-    plt.show(block=True)
 
 
-from main import model
-experment_path=Constants.path+'runs/'
-best_model=torch.load(experment_path+'best_model.pth')
-model.load_state_dict(best_model['model_state_dict'])
-
-hint_names=[Constants.path+'polygons/115000.pt']
-polyg=torch.load(hint_names[0])
-# domain=Polygon(polyg['generators'])
-# domain.create_mesh(1/20)
-# domain.save(Constants.path+'hints_polygons/'+str(3250)+'.pt')
-# polyg2=torch.load(Constants.path+'hints_polygons/'+str(3250)+'.pt')
-run_hints(model, polyg, 'super_hints_fig5.pt', J=10)
-# figure2()
 
 
 

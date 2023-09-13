@@ -32,8 +32,8 @@ class norms:
     def relative_L1(cls,x,y):
         return torch.nn.L1Loss()(x,y)/(torch.nn.L1Loss(y,y*0)+1e-10)
     
-def grf(domain, n, mu=0, sigma=0.1):
-    np.random.seed(0)
+def grf(domain, n, mu=0, sigma=0.1, seed=0):
+    np.random.seed(seed)
     A=np.array([np.random.normal(mu, sigma,n) for i in range(len(domain)) ]).T
 
     # [plt.plot(domain, np.sqrt(2)*A[i,:]) for i in range(n)]
