@@ -336,8 +336,4 @@ def plot_figures(ax,y, **kwargs):
     
       
        
-    # plt.savefig(fig_path + 'table7.eps', format='eps',bbox_inches='tight')
-# L=[1/3,2/3]
-# theta=[1,2]
-# a=step_fourier(L,theta)
-# print(a[3]/2)
+

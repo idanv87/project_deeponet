@@ -37,8 +37,9 @@ angle_fourier=domain['angle_fourier']
 translation=domain['translation']
 L=domain['M']
 xi,yi,F,psi, temp1, temp2=create_data(domain)
-
-sample=grf(F, 1, seed=1 )
+sigma=0.1
+mu=0.1
+sample=grf(F, 1, seed=0, sigma=sigma, mu=mu )
 func=interpolation_2D(x_domain,y_domain,generate_sample(sample[0],F, psi)[0] )
 
 
@@ -121,11 +122,15 @@ def network(model, func, J, J_in, hint_init):
             x = Gauss_zeidel(A.todense(), b, x_0, theta)[0]
 
 
+
        
         print(np.linalg.norm(A@x-b)/np.linalg.norm(b))
         res_err.append(np.linalg.norm(A@x-b)/np.linalg.norm(b))
         err.append(np.linalg.norm(x-solution)/np.linalg.norm(solution))
-   
+        if (res_err[-1] < 1e-13) and (err[-1] < 1e-13):
+            return err, res_err
+        else:
+            pass
 
 
    
@@ -133,12 +138,28 @@ def network(model, func, J, J_in, hint_init):
 
 def run_hints(func, J, J_in, hint_init):
     return network(model, func, J, J_in, hint_init)
-    # torch.save([ err_net, res_err_net], Constants.path+'hints_fig.pt')
+
+
+def plot_solution( path, eps_name):
+    e_deeponet, r_deeponet= torch.load(path)
+    
+    fig3, ax3 = plt.subplots()   # should be J+1
+    fig3.suptitle(F'relative error, \mu={mu}, \sigma={sigma} ')
+
+    ax3.plot(e_deeponet, 'g')
+    # ax3.plot(r_deeponet,'r',label='res.err')
+    # ax3.legend()
+    ax3.set_xlabel('iteration')
+    ax3.set_ylabel('error')
+    ax3.text(0.9, 0.1, f'final_err={e_deeponet[-1]:.2e}', transform=ax3.transAxes, fontsize=6,
+             ha='left', va='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.9))
+    fig3.savefig(eps_name+'errors.eps', format='eps', bbox_inches='tight')
+    plt.show(block=True)
+    return 1
 
 
 torch.save(run_hints(func, J=5, J_in=[0], hint_init=True), Constants.outputs_path+'modes_error.pt')
-# plot_solution_and_fourier(list(range(0,0+25)),Constants.outputs_path+'modes_error.pt', Constants.eps_fig_path+ 'one_d_x0_J=8_Jin=012_modes=1')
-
+plot_solution(Constants.outputs_path+'modes_error.pt', Constants.eps_fig_path+ 'two_d_J=5,mu1sigma1.eps')
 
 
 
