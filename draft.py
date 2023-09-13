@@ -104,9 +104,12 @@ def generate_domains(S,T,n1,n2):
                 # domain=Polygon(np.array([[0,0],[1,0],[2,1],[0,1]])) 
                 domain=Annulus(np.vstack((np.array(X),np.array(Y))).T, T)
 
-                domain.create_mesh(0.2)
-                domain.plot_geo()
+               
+                
                 domain.save(Constants.path+'polygons/1150'+str(n1)+str(n2)+'.pt')
+                
+                # domain.create_mesh(0.2)
+                # domain.save(Constants.path+'hints_polygons/01_1150'+str(n1)+str(n2)+'.pt')
                 print('sucess')
                 domain.plot_geo(block=False)
             except:

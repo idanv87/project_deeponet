@@ -28,7 +28,7 @@ experment_path=Constants.path+'runs/'
 best_model=torch.load(experment_path+'best_model.pth')
 model.load_state_dict(best_model['model_state_dict'])
 
-hint_names=[Constants.path+'polygons/115000.pt']
+hint_names=[Constants.path+'hints_polygons/01_115000.pt']
 source_domain=torch.load(hint_names[0])
 domain=source_domain
 x_domain=domain['interior_points'][:,0]
@@ -37,11 +37,11 @@ angle_fourier=domain['angle_fourier']
 translation=domain['translation']
 L=domain['M']
 xi,yi,F,psi, temp1, temp2=create_data(domain)
-sigma=0.1
-mu=0.1
+sigma=0.4
+mu=0.6
 sample=grf(F, 1, seed=0, sigma=sigma, mu=mu )
 func=interpolation_2D(x_domain,y_domain,generate_sample(sample[0],F, psi)[0] )
-
+J=20
 
 
 def deeponet(model, func):
@@ -103,7 +103,7 @@ def network(model, func, J, J_in, hint_init):
     err=[]
     k_it=0
 
-    for i in range(400):
+    for i in range(2000):
         x_0 = x
         k_it += 1
         theta=2/3
@@ -158,8 +158,8 @@ def plot_solution( path, eps_name):
     return 1
 
 
-torch.save(run_hints(func, J=5, J_in=[0], hint_init=True), Constants.outputs_path+'modes_error.pt')
-plot_solution(Constants.outputs_path+'modes_error.pt', Constants.eps_fig_path+ 'two_d_J=5,mu1sigma1.eps')
+torch.save(run_hints(func, J=J, J_in=[0], hint_init=True), Constants.outputs_path+'J='+str(J)+'k='+str(Constants.k)+'errors.pt')
+plot_solution(Constants.outputs_path+'J='+str(J)+'k='+str(Constants.k)+'errors.pt', 'J='+str(J)+'k='+str(Constants.k)+'errors.pt')
 
 
 
