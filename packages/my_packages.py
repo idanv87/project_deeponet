@@ -127,35 +127,38 @@ def gmres(A, b, x0, nmax_iter, tol):
 
 
 class Plotter:
-    def __init__(self,headers,data_x,data_y,labels, **kwargs) -> None:
+    def __init__(self,ax,headers,data_x,data_y,labels, n_figs=1, **kwargs) -> None:
         self.headers=headers
         self.data_x=data_x
         self.data_y=data_y
-        self.colors=['red','blue','green','black', 'orange']
+        if len(data_x)>1:
+            self.colors=['red','blue','green','black', 'orange']
+        else:
+            self.colors=['black']    
+
         self.linestyles=['solid']*5
         self.labels=labels
-        self.fig, self.ax=plt.subplots()
+        self.ax=ax
+        self.kwargs=kwargs
 
-        try:
-            self.fig.suptitle(kwargs['title'])
-        except:
-            pass    
         
     def plot_figure(self):
         
         for i in range(len(self.data_x)):
             self.plot_single(self.headers,[self.data_x[i],self.data_y[i]],color=self.colors[i],label=self.labels[i])
-        if len(self.data_x)>1:
-            self.fig.legend()
-        self.ax.set_yscale("log")   
+            if len(self.labels)>1:
+                self.ax.legend()
 
-        plt.show(block=False)
-            
+        try:
+            self.ax.set_yscale(self.kwargs['scale'])   
+        except:
+            pass    
+        try:
+            self.ax.set_title(self.kwargs['title'])
+        except:
+            pass    
+        plt.show(block=False)        
     
-    def save_figure(self, path):
-         self.fig.savefig(path, format='eps', bbox_inches='tight')
-         plt.show(block=True)
-
     def plot_single(self,headers, data, **kwargs ):
             try:
                 self.ax.plot(data[0],data[1],label=kwargs['label'],color=kwargs['color'])
@@ -165,7 +168,45 @@ class Plotter:
             self.ax.set_ylabel(headers[1])
             plt.show(block=False)
 
+    def save_figure(self,fig, path):
+         fig.savefig(path, format='eps', bbox_inches='tight')
+         plt.show(block=True)        
 
+
+# class Plotter_multi:
+#         def __init__(self,headers,data_x,data_y,labels,n1,n2, **kwargs) -> None:
+#             assert (n1*n2)>2
+#             assert len(data_x)==n1*n2
+#             assert len(headers)==n1*n2
+
+#             self.indices=np.array(range(n1*n2)).reshape(n1,n2)
+#             self.headers=headers
+#             self.data_x=data_x
+#             self.data_y=data_y
+#             self.colors=['red','blue','green','black', 'orange']
+#             self.linestyles=['solid']*5
+#             self.labels=labels
+#             self.fig, self.ax=plt.subplots(n1,n2)
+        
+#         def plot_figure(self):
+#                 def plot_figure(self):
+#                     for ind in self.indices:
+#                         for i in range(len(self.data_x[ind])):
+#                             self.plot_single(self.ax[ind], self.headers[ind],[self.data_x[ind][i],self.data_y[ind][i]],color=self.colors[i],label=self.labels[ind][i])
+#                         if len(self.data_x[ind])>1:
+#                             self.ax[ind].legend()
+#                         # self.ax[ind].set_yscale("log")   
+
+#         plt.show(block=True)
+
+#         def plot_single(self,ax,headers, data, **kwargs ):
+#             try:
+#                 ax.plot(data[0],data[1],label=kwargs['label'],color=kwargs['color'])
+#             except:
+#                 ax.plot(data[1],label=kwargs['label'],color=kwargs['color'])    
+#             ax.set_xlabel(headers[0])
+#             ax.set_ylabel(headers[1])
+#             plt.show(block=False)
     
 def example():
     d={'a':1, 'b':2}
