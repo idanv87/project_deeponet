@@ -14,10 +14,10 @@ class Constants:
     device = torch.device('cpu')
     dtype = torch.float32
 
-    path = '/Users/idanversano/Documents/project_geo_deeponet/one_d/'
+    path = '/Users/idanversano/Documents/project_geo_deeponet/one_d_k50/'
     eps_fig_path=path+'eps_figures/'
     outputs_path=path+'outputs/'
-    k=25
+    k=50
     batch_size=16
     num_epochs=10000
 

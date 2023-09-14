@@ -67,7 +67,9 @@ def network(domain, model,func, J, J_in, hint_init):
   
     solution_expansion=[np.dot(solution,V[:,s]) for s in range(V.shape[1])]
 
-
+ 
+    # x=deeponet(domain, model, func)
+    # np.linalg.norm(solution-x)/np.linalg.norm(solution)
     if hint_init:
         x=deeponet(domain, model, func)
         
@@ -118,7 +120,7 @@ def network(domain, model,func, J, J_in, hint_init):
         d={'N':N, 'err':err, 'res_err':res_err, 'fourier_err':fourier_err, 
        'x_k':x_k,'solution':solution, 'solution_expansion':solution_expansion, 
        'x_expansion':x_expansion, 'J':J, 'J_in':J_in,'hint_init': hint_init, 'gmres_err':gmres_err}
-        if (res_err[-1] < (tol*10)) or (res_err[-1] > (10000)) :
+        if (res_err[-1] < (tol*10)) or (res_err[-1] > (100000)) :
             return d
 
     # torch.save(x, Constants.path+'pred.pt')
@@ -141,10 +143,11 @@ def run_hints(domain, func, J, J_in, hint_init):
 def fig1():
     N=60
     domain = np.linspace(0, 1, N)
-    func=scipy.interpolate.interp1d(domain, grf(domain,1,mu=0.4,sigma=0.7))
+    # func=scipy.interpolate.interp1d(domain[1:-1],np.sin(math.pi*domain[1:-1]),kind='cubic')
+    func=scipy.interpolate.interp1d(domain, grf(domain,1,mu=0.4,sigma=0.6))
     L=create_D2(domain)
     output=[]
-    for j in [2, 5,15,20 ]:
+    for j in [5,10,20]:
         d=run_hints(domain, func, J=j, J_in=[0], hint_init=True)
         torch.save(d, Constants.outputs_path+str(j)+'fig1.pt')
         output.append(torch.load(Constants.outputs_path+str(j)+'fig1.pt'))
@@ -155,23 +158,23 @@ def fig1():
     labels=['J='+str(o['J']) for o in output]
 
     fig,ax=plt.subplots()
-    P=Plotter(ax,headers,data_x,data_y,labels, title=f'N={N}, k={Constants.k}', scale='')
+    P=Plotter(ax,headers,data_x,data_y,labels, title=f'N={N}, k={Constants.k}', scale='log')
     P.plot_figure()
     P.save_figure(fig,Constants.eps_fig_path+'error_iter_different_J_N_'+str(N)+'_k_'+str(Constants.k)+'.eps')
 
 
 def fig2():
-    N=60
+    N=100
     domain = np.linspace(0, 1, N)
     func=scipy.interpolate.interp1d(domain[1:-1],np.sin(math.pi*domain[1:-1])
                                     +10*np.sin(5*math.pi*domain[1:-1])
-                                    +10*np.sin(10*math.pi*domain[1:-1])
+                                    
                                     
                                     ,kind='cubic')
     output=[]
-    J=5
-    # d=run_hints(domain, func, J=J, J_in=[0], hint_init=True)
-    # torch.save(d, Constants.outputs_path+str(J)+'fig2.pt')
+    J=20
+    d=run_hints(domain, func, J=J, J_in=[0], hint_init=True)
+    torch.save(d, Constants.outputs_path+str(J)+'fig2.pt')
     output=torch.load(Constants.outputs_path+str(J)+'fig2.pt')
 
     fig, ax = plt.subplots(1,2)
@@ -192,7 +195,7 @@ def fig2():
     P.save_figure(fig,Constants.eps_fig_path+'fourier_error'+str(N)+'_k_'+str(Constants.k)+'.eps')
 
 
-
+fig2()
 def fig3():
     N=60
     domain = np.linspace(0, 1, N)

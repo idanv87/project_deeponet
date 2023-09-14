@@ -189,7 +189,7 @@ def predict(model, dataloader, dataset, criterion):
 
         pred_loss = pred_running_loss/counter
         pred_acc = pred_running_acc/counter
-
+        writer.add_scalar("test/test_loss", pred_loss, epoch)
         return pred_loss, pred_acc
     
 def validate(model, dataloader, dataset, criterion):
