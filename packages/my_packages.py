@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.tri as tri
 from scipy.interpolate import Rbf
 from tabulate import tabulate
 
@@ -143,11 +144,11 @@ class Plotter:
 
         
     def plot_figure(self):
-        
+        self.ax.set(adjustable='box')
         for i in range(len(self.data_x)):
             self.plot_single(self.headers,[self.data_x[i],self.data_y[i]],color=self.colors[i],label=self.labels[i])
-            if len(self.labels)>1:
-                self.ax.legend()
+            if len(self.labels)>1 and self.labels[0] != None:
+                self.ax.legend(loc='upper right')
 
         try:
             self.ax.set_yscale(self.kwargs['scale'])   
@@ -164,49 +165,46 @@ class Plotter:
                 self.ax.plot(data[0],data[1],label=kwargs['label'],color=kwargs['color'])
             except:
                 self.ax.plot(data[1],label=kwargs['label'],color=kwargs['color'])    
+
             self.ax.set_xlabel(headers[0])
             self.ax.set_ylabel(headers[1])
+            
+            
             plt.show(block=False)
 
     def save_figure(self,fig, path):
          fig.savefig(path, format='eps', bbox_inches='tight')
-         plt.show(block=True)        
+         plt.show(block=True)    
 
 
-# class Plotter_multi:
-#         def __init__(self,headers,data_x,data_y,labels,n1,n2, **kwargs) -> None:
-#             assert (n1*n2)>2
-#             assert len(data_x)==n1*n2
-#             assert len(headers)==n1*n2
 
-#             self.indices=np.array(range(n1*n2)).reshape(n1,n2)
-#             self.headers=headers
-#             self.data_x=data_x
-#             self.data_y=data_y
-#             self.colors=['red','blue','green','black', 'orange']
-#             self.linestyles=['solid']*5
-#             self.labels=labels
-#             self.fig, self.ax=plt.subplots(n1,n2)
-        
-#         def plot_figure(self):
-#                 def plot_figure(self):
-#                     for ind in self.indices:
-#                         for i in range(len(self.data_x[ind])):
-#                             self.plot_single(self.ax[ind], self.headers[ind],[self.data_x[ind][i],self.data_y[ind][i]],color=self.colors[i],label=self.labels[ind][i])
-#                         if len(self.data_x[ind])>1:
-#                             self.ax[ind].legend()
-#                         # self.ax[ind].set_yscale("log")   
 
-#         plt.show(block=True)
+def plot_contour(ax,x,y,z):
 
-#         def plot_single(self,ax,headers, data, **kwargs ):
-#             try:
-#                 ax.plot(data[0],data[1],label=kwargs['label'],color=kwargs['color'])
-#             except:
-#                 ax.plot(data[1],label=kwargs['label'],color=kwargs['color'])    
-#             ax.set_xlabel(headers[0])
-#             ax.set_ylabel(headers[1])
-#             plt.show(block=False)
+    ngridx = 200
+    ngridy = 200
+    xi = np.linspace(0, 1, ngridx)
+    yi = np.linspace(0, 1, ngridy)
+
+    # Linearly interpolate the data (x, y) on a grid defined by (xi, yi).
+    triang = tri.Triangulation(x, y)
+    interpolator = tri.LinearTriInterpolator(triang, z)
+    Xi, Yi = np.meshgrid(xi, yi)
+    zi = interpolator(Xi, Yi)
+
+    # Note that scipy.interpolate provides means to interpolate data on a grid
+    # as well. The following would be an alternative to the four lines above:
+    # from scipy.interpolate import griddata
+    # zi = griddata((x, y), z, (xi[None, :], yi[:, None]), method='linear')
+
+    ax.contour(xi, yi, zi, levels=14, linewidths=0.5, colors='k')
+    cntr1 = ax.contourf(xi, yi, zi, levels=14, cmap="RdBu_r")
+    plt.clabel(cntr1, colors = 'k', fmt = '%2.1f', fontsize=6)
+    plt.colorbar(cntr1, ax=ax)
+    # ax.plot(x, y, 'ko', ms=3)
+    ax.set(xlim=(0, 1), ylim=(0, 1))
+
+    plt.show()
     
 def example():
     d={'a':1, 'b':2}
