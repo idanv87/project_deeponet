@@ -62,10 +62,10 @@ class Constants:
     test_path= path+'test_set/'
 
 
-    k=25
+    k=40
     h = 1/30
-    batch_size=32
-    num_epochs = 400
+    batch_size=16
+    num_epochs = 6000
   
 
 

@@ -1,6 +1,7 @@
 import datetime
 import os
 import sys
+import time
 
 from shapely.geometry import Polygon as Pol2
 from pylab import figure
@@ -23,7 +24,7 @@ from constants import Constants
 from pydec.dec import simplicial_complex
 from functions.functions import Test_function
 
-
+from packages.my_packages import *
 
 
 
@@ -53,11 +54,13 @@ class mesh:
             #  50,2
             X=np.vstack((point,nbhd))
             values=np.hstack((1,np.zeros(nbhd.shape[0])))
-            self.p.append(scipy.interpolate.RBFInterpolator(X,values))
+            self.p.append(interpolation_2D(X[:,0],X[:,1,], values))
+            # self.p.append(scipy.interpolate.RBFInterpolator(X,values, function='gaussian'))
             self.T=1000
 
 class Polygon:
     def __init__(self, generators):
+        self.T=-100
         self.generators = generators
         self.n=self.generators.shape[0]
         self.geo = dmsh.Polygon(self.generators)
@@ -66,15 +69,18 @@ class Polygon:
         
 
     def create_mesh(self, h):
+
         # if np.min(calc_min_angle(self.geo)) > (math.pi / 20):
-            
+        start=time.time()
         X, cells = dmsh.generate(self.geo, h)
 
         X, cells = optimesh.optimize_points_cells(
             X, cells, "CVT (full)", 1.0e-6, 120
         )
+        print(f'triangulation generated with time= {time.time()-start}')
         self.X=X
         self.cells=cells
+        
     # else:
     #     self.plot()    
         # dmsh.show(X, cells, self.geo)
@@ -96,22 +102,38 @@ class Polygon:
                 self.interior_indices.append(j)
         
         self.interior_points=np.array(self.interior_points)
-        self.ev = self.laplacian().real
-        self.radial_functions=self.radial_basis()
+        try:
+            self.hot_points=self.find_hot_points()
+            self.hot_indices=self.find_hot_indices()
+        except:
+                self.hot_points=None
+                self.hot_indices=None
+        self.ev, self.V = self.laplacian()
+        print(f'geometry generated with time= {time.time()-start}')
+        # self.radial_functions=self.radial_basis()
+        self.radial_functions=None
+     
     
 
 
 
     def laplacian(self):
-        return scipy.sparse.linalg.eigs(
-            -self.M[self.interior_indices][:, self.interior_indices],
-            k=5,
-            return_eigenvectors=False,
+        ev,V=scipy.sparse.linalg.eigs(-self.M[self.interior_indices][:, self.interior_indices],k=40,
+            return_eigenvectors=True,
             which="SR",
         )
+        return ev,V
 
-
-
+    def find_hot_points(self):
+        base_rect=torch.load(Constants.path+'base_polygon/base_rect.pt')
+        pts=base_rect['interior_points']
+        return np.array([closest(self.interior_points,pts[i])[0] for i in range(pts.shape[0]) ])
+    
+    def find_hot_indices(self):
+        base_rect=torch.load(Constants.path+'base_polygon/base_rect.pt')
+        pts=base_rect['interior_points']
+        return np.array([closest(self.interior_points,pts[i])[1] for i in range(pts.shape[0]) ])
+    
     def is_legit(self):
         if np.min(abs(self.sc[1].star.diagonal())) > 0:
             return True
@@ -125,12 +147,18 @@ class Polygon:
             "ev": self.ev,
             "principal_ev": self.ev[-1], 
             "interior_points": self.interior_points,
-            # "interior_points": self.interior_points[np.lexsort(np.fliplr(self.interior_points).T)],
+            "hot_points": self.hot_points,
+            "hot_indices":self.hot_indices,
+            # "hot_points": self.hot_points[np.lexsort((self.hot_points[:,1], self.hot_points[:,0]))],
             "generators": self.generators,
             "M": self.M[self.interior_indices][:, self.interior_indices],
             'radial_basis':self.radial_functions,
              'angle_fourier':self.fourier_coeff,
              'translation':self.T,
+             'cells':self.cells,
+             'X':self.X,
+             'geo':self.geo,
+             'V':self.V,
             "legit": True,
             'type': 'polygon'
         }
@@ -170,9 +198,9 @@ class Polygon:
 
 
         
-    
-    def plot_geo(self):
-        dmsh.show(self.X, self.cells, self.geo)
+    @classmethod
+    def plot_geo(cls,x,y,geo):
+        dmsh.show(x, y, geo)
 
 
 
@@ -194,7 +222,7 @@ class Annulus(Polygon):
     def __init__(self, generators,T):
         self.generators = generators
         self.n=self.generators.shape[0]
-        self.geo =dmsh.Rectangle(-1, 1, -1, 1)- dmsh.Polygon(self.generators)
+        self.geo =dmsh.Rectangle(0, 1, 0, 1)- dmsh.Polygon(self.generators)
         self.fourier_coeff = self.fourier()
         self.T=T
 

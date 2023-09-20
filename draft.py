@@ -12,6 +12,7 @@ from matplotlib import pyplot
 import numpy as np
 import scipy
 import torch
+import random
 
 import sys
 from sklearn.cluster import KMeans
@@ -23,12 +24,12 @@ import pandas as pd
 
 
 from geometry import Polygon, Annulus
-from utils import extract_path_from_dir, save_eps, plot_figures, grf
+from utils import extract_path_from_dir, save_eps, plot_figures, grf, spread_points
 
 from constants import Constants
-
+from packages.my_packages import *
 from two_d_data_set import create_loader 
-
+import time
 
 def loss(a,*args):
         basis,f, x,y=args
@@ -44,7 +45,7 @@ def create_data(domain):
     T=domain['translation']
     A = (-M - Constants.k* scipy.sparse.identity(M.shape[0]))
     test_functions=domain['radial_basis']
-    V=[func(np.array([x, y]).T) for func in test_functions]
+    V=[np.array(func(x,y)) for func in test_functions]
     F=[v for v in V]
     U=[scipy.sparse.linalg.spsolve(A,b) for b in F]
 
@@ -54,24 +55,43 @@ def create_data(domain):
     return x,y,F, U, angle_fourier, T
 
 def expand_function(f,domain):
-    # f is a vector of f evaluated on the domain points
-    
-    base_rect=torch.load(Constants.path+'base_polygon/base_rect.pt')
+    f=np.array(f)
+    # interp=interpolation_2D(domain['interior_points'][:,0],domain['interior_points'][:,1],f)
+    # # # f is a vector of f evaluated on the domain points
+    # a=np.array(interp(domain['hot_points'][:,0], domain['hot_points'][:,1]) )
+    a=f[domain['hot_indices']]
+    return a
+    # base_rect=torch.load(Constants.path+'base_polygon/base_rect.pt')
     # base_rect=torch.load(Constants.path+'/base_polygon/base_rect.pt')
-    x=domain['interior_points'][:,0]
-    y=domain['interior_points'][:,1]
-    basis=base_rect['radial_basis']
-    # plt.scatter(x,y,c=basis[10](np.array([x, y]).T))
-    # plt.show()
-    phi=np.array([func(np.array([x, y]).T) for func in basis]).T
-    a=np.linalg.solve(phi.T@phi,phi.T@f)
-    approximation=np.sum(np.array([a[i]*func(np.array([x, y]).T) for i,func in enumerate(basis)]).T,axis=1)
-    error=np.linalg.norm(approximation-f)/np.linalg.norm(f)
-    if error>1e-10:
-         print(f'expansion of f is of error  {error}')
+    # x=domain['interior_points'][:,0]
+    # y=domain['interior_points'][:,1]
+    # basis=base_rect['radial_basis']
+    
+
+    # # V=domain['V'][:,:10]
+
+    # # a=[np.dot(V[:,i],f).real for i in range(V.shape[-1])]
+    # # approximation=np.sum(np.array([a[i]*V[:,i] for i in range(len(a))]).T,axis=1)
+    # # error=np.linalg.norm(approximation-f)/np.linalg.norm(f)
+
+  
+    # phi=np.array([func(x,y) for func in basis]).T
+    # # # a,e=Least_squares(phi,f)
+    # # start=time.time()
+    # # # a,e=Least_squares(phi,f)
+    # a=np.linalg.solve(phi.T@phi,phi.T@f)
+
+    # approximation=np.sum(np.array([a[i]*np.array(func(x,y)) for i,func in enumerate(basis)]).T,axis=1)
+    # error=np.linalg.norm(approximation-f)/np.linalg.norm(f)
+
+    # # if np.linalg.matrix_rank(phi.T@phi)<77:
+    # #     pass
+    # #     print(np.linalg.matrix_rank(phi.T@phi))
+
+    # #     #  print(f'expansion of f is of error  {error}')
          
     
-    return a
+    # return a
 
     #   x0=np.random.rand(len(basis),1)
     # res = minimize(loss, x0, method='BFGS',args=(basis,f,x,y), options={'xatol': 1e-4, 'disp': True})
@@ -95,7 +115,7 @@ def generate_domains(S,T,n1,n2):
             Y=[]
             for j in range(len(lengeths)):
                     if lengeths[j]>0:
-                        p=0.7*np.array([x1[j]-0.5,y1[j]])
+                        p=0.5*np.array([x1[j]+0.5,y1[j]+0.5])
                         new_p=S@p+T
                         X.append(new_p[0])
                         Y.append(new_p[1])
@@ -103,15 +123,15 @@ def generate_domains(S,T,n1,n2):
                 
                 # domain=Polygon(np.array([[0,0],[1,0],[2,1],[0,1]])) 
                 domain=Annulus(np.vstack((np.array(X),np.array(Y))).T, T)
-
-               
-                
-                domain.save(Constants.path+'polygons/1150'+str(n1)+str(n2)+'.pt')
-                
-                # domain.create_mesh(0.2)
-                # domain.save(Constants.path+'hints_polygons/01_1150'+str(n1)+str(n2)+'.pt')
+                # domain.create_mesh(0.05)
+                # domain.save(Constants.path+'hints_polygons/005_1150'+str(n1)+str(n2)+'.pt')
+                domain.create_mesh(1/50)
+                # domain.plot_geo(domain.X, domain.cells, domain.geo)
+                domain.save(Constants.path+'polygons/50_1150'+str(n1)+str(n2)+'.pt')
+                domain.plot_geo(domain.X, domain.cells, domain.geo)
+                # domain.save(Constants.path+'hints_polygons/30_1150'+str(n1)+str(n2)+'.pt')
                 print('sucess')
-                domain.plot_geo(block=False)
+                
             except:
                 print('failed')    
 
@@ -120,42 +140,43 @@ if __name__=='__main__':
     pass
 
     # base_domain=Polygon(np.array([[-1,-1],[1,-1],[1,1],[-1,1]]))
-    # # base_domain=Polygon(np.array([[0,0],[1,0],[1,1],[0,1]]))
-    # base_domain.create_mesh(0.2)
-    # base_domain.plot_geo()
+    # base_domain=Polygon(np.array([[0,0],[1,0],[1,1],[0,1]]))
+    # base_domain.create_mesh(0.1)
     # base_domain.save(Constants.path+'base_polygon/base_rect.pt')
 
     for i,theta in enumerate(np.linspace(0,2*math.pi,10)):
-        for j,T in enumerate(0.9*grf(list(range(2)),10)):
+        for j,T in enumerate(0.5*grf(list(range(2)),10)):
+           if j==0: 
             S=np.array([[math.cos(theta), math.sin(theta)],[-math.sin(theta), math.cos(theta)]])
             generate_domains(S,T,i,j)
+            sys.exit()
 
 # base_rect=torch.load(Constants.path+'base_polygon/base_rect.pt')
-# print(base_rect['interior_points'].shape)
 
-
-
-
-
-
-
-# if __name__=='__main__':
-#     polygon = Pol2(shell=((0,0),(1,0),(1,1),(0,1)),
-# holes=None
-# fig, ax = plt.subplots()
-#     plot_polygon(ax, polygon, facecolor='white', edgecolor='red')
+# domain=torch.load(Constants.path+'polygons/10_115000.pt')
+# plt.scatter(domain['interior_points'][:,0], domain['interior_points'][:,1],color='b')
+# plt.scatter(domain['hot_points'][:,0], domain['hot_points'][:,1],color='r')
 # plt.show()
-####################################################################################################################################################################
-    # p=torch.load(Constants.path+'polygons/rect.pt')
-    # plt.scatter(p['interior_points'][:,0], p['interior_points'][:,1],c='b')
-    # plt.scatter(p['hot_points'][:,0], p['hot_points'][:,1],c='r')
-    # plt.title('interior points and hot points')
-    # plt.show()
-####################################################################################################################################################################
 
 
+# # dmsh.show(domain['X'], domain['cells'], domain['geo'])
+# x=domain['interior_points'][:,0]
+# y=domain['interior_points'][:,1]
+# f=domain['radial_basis'][10]
+# z=f(np.array([x,y]).T)
+# expand_function(z,domain)
 
 
+# dmsh.show(base_rect['X'], base_rect['cells'],base_rect['geo'])
+# x=base_rect['interior_points'][:,0]
+# y=base_rect['interior_points'][:,1]
+# f=base_rect['radial_basis'][20]
+# X,Y=np.meshgrid(np.linspace(-1,1,40)[1:-1],np.linspace(-1,1,40)[1:-1])
+# # z=f(np.array([x,y]).T)
+# z=f(np.array([X.ravel(),Y.ravel()]).T)
 
 
-
+# domain=torch.load(Constants.path+'polygons/115000.pt')
+# # domain['hot_points']=spread_points(70, domain['interior_points'])
+# plt.scatter(domain['hot_points'][2,0], domain['hot_points'][2,1],color='r')
+# dmsh.show(domain['X'], domain['cells'],domain['geo'])

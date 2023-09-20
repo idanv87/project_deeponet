@@ -32,13 +32,13 @@ class norms:
     def relative_L1(cls,x,y):
         return torch.nn.L1Loss()(x,y)/(torch.nn.L1Loss(y,y*0)+1e-10)
     
-def grf(domain, n, mu=0, sigma=0.1, seed=0):
+def grf(domain, n, seed=0, mu=0, sigma=0.1):
     np.random.seed(seed)
     A=np.array([np.random.normal(mu, sigma,n) for i in range(len(domain)) ]).T
 
     # [plt.plot(domain, np.sqrt(2)*A[i,:]) for i in range(n)]
     # plt.show(block=False)
-    torch.save(A, Constants.outputs_path+'grf.pt')
+    # torch.save(A, Constants.outputs_path+'grf.pt')
     return np.sqrt(2)*A
 
 def plot_polygon(ax, poly, **kwargs):
@@ -142,7 +142,8 @@ def spread_points(subset_num,X):
     # We'll need to view things as an object array because np.random.choice
     # expects a 1D array.
     dat = xy.T.ravel().view([('x', float), ('y', float)])
-    subset = np.random.choice(dat, subset_num, p=weight)
+    # subset = np.random.choice(dat, subset_num, p=weight)
+    subset = np.random.choice(dat, subset_num)
     return np.vstack((subset['x'], subset['y'])).T
     
 
@@ -336,4 +337,8 @@ def plot_figures(ax,y, **kwargs):
     
       
        
+def closest(set1,p):
+    temp=np.argmin(np.array([np.linalg.norm(x-p) for x in set1]))
+    return set1[temp], temp
+
 

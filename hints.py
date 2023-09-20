@@ -15,20 +15,24 @@ from scipy.interpolate import Rbf
 
 
 from constants import Constants
-from utils import save_eps, plot_figures, grf
-from main import  SonarDataset, generate_sample
-from two_d_data_set import create_loader
+from utils import  grf
+
+from two_d_data_set import *
 from draft import create_data, expand_function
-from geometry import Polygon
 from packages.my_packages import Gauss_zeidel, interpolation_2D
-from main import model
+
+from two_d_model import geo_deeponet, Deeponet
 
 
+
+# model=geo_deeponet( 2, 77,2, 99)
+model=Deeponet(2,77)
 experment_path=Constants.path+'runs/'
 best_model=torch.load(experment_path+'best_model.pth')
 model.load_state_dict(best_model['model_state_dict'])
 
-hint_names=[Constants.path+'hints_polygons/01_115000.pt']
+# hint_names=[Constants.path+'hints_polygons/10_115000.pt']
+hint_names=[Constants.path+'polygons/50_115000.pt']
 source_domain=torch.load(hint_names[0])
 domain=source_domain
 x_domain=domain['interior_points'][:,0]
@@ -36,28 +40,19 @@ y_domain=domain['interior_points'][:,1]
 angle_fourier=domain['angle_fourier']
 translation=domain['translation']
 L=domain['M']
-xi,yi,F,psi, temp1, temp2=create_data(domain)
-sigma=0.4
-mu=0.6
-sample=grf(F, 1, seed=0, sigma=sigma, mu=mu )
-func=interpolation_2D(x_domain,y_domain,generate_sample(sample[0],F, psi)[0] )
-J=20
+sigma=0.1
+mu=0
 
+
+sample=grf(x_domain, 1, seed=4, sigma=sigma, mu=mu )
+func=interpolation_2D(x_domain,y_domain,sample[0])
+J=20
+# J=5
 
 def deeponet(model, func):
     X_test_i=[]
     Y_test_i=[]
     a=expand_function(func(x_domain, y_domain), domain )
-    # with torch.no_grad():
-    #     y=torch.tensor(domain[1:-1],dtype=torch.float32).reshape(x_domain.shape[0],)
-    #     f_temp=torch.tensor(a.reshape(1,a.shape[0]),dtype=torch.float32).repeat(x_domain.shape[0],1)
-    #     tranlation_temp=torch.tensor(translation.reshape(1,translation.shape[0]),dtype=torch.float32).repeat(x_domain.shape[0],1)
-    #     angle_temp=torch.tensor(angle_fourier.reshape(1,angle.shape[0]),dtype=torch.float32).repeat(x_domain.shape[0],1)
-        
-    #     pred2=model([y,f_temp, tranlation_temp,y*0, angle_fourier])
-    # return pred2.numpy()
-
-
     for j in range(domain['interior_points'].shape[0]):
         X_test_i.append([
                         torch.tensor([x_domain[j],y_domain[j]], dtype=torch.float32), 
@@ -87,7 +82,7 @@ def deeponet(model, func):
 def network(model, func, J, J_in, hint_init):
     A = (-L - Constants.k* scipy.sparse.identity(L.shape[0]))
     ev,V=scipy.sparse.linalg.eigs(-L,k=15,return_eigenvectors=True,which="SR")
-    print(ev)
+
     b=func(x_domain, y_domain)
     solution=scipy.sparse.linalg.spsolve(A, b)
     predicted=deeponet(model, func)
@@ -103,17 +98,18 @@ def network(model, func, J, J_in, hint_init):
     err=[]
     k_it=0
 
-    for i in range(2000):
+    for i in range(200):
         x_0 = x
         k_it += 1
-        theta=2/3
+        theta=1
        
         if (((k_it % J) in J_in) and (k_it > J_in[-1])):
             
-            # factor = np.max(abs(generate_sample(sample[0],F, psi)[0]))/np.max(abs(A@x_0-b))
-            factor=np.max(abs(grf(F, 1)))/np.max(abs(A@x_0-b))
+            factor = np.max(abs(sample[0]))/np.max(abs(A@x_0-b))
+            # factor=np.max(abs(grf(F, 1)))/np.max(abs(A@x_0-b))
             x_temp = x_0*factor + \
             deeponet(model, interpolation_2D(x_domain,y_domain,(b-A@x_0)*factor )) 
+            
             x=x_temp/factor
             
             # x = x_0 + deeponet(model, scipy.interpolate.interp1d(domain[1:-1],(A@x_0-b)*factor ))/factor
@@ -159,7 +155,7 @@ def plot_solution( path, eps_name):
 
 
 torch.save(run_hints(func, J=J, J_in=[0], hint_init=True), Constants.outputs_path+'J='+str(J)+'k='+str(Constants.k)+'errors.pt')
-plot_solution(Constants.outputs_path+'J='+str(J)+'k='+str(Constants.k)+'errors.pt', 'J='+str(J)+'k='+str(Constants.k)+'errors.pt')
+# plot_solution(Constants.outputs_path+'J='+str(J)+'k='+str(Constants.k)+'errors.pt', 'J='+str(J)+'k='+str(Constants.k)+'errors.pt')
 
 
 

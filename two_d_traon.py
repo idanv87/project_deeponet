@@ -15,7 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-import torch.optim.lr_scheduler as Lambd
+
  
 
 
@@ -36,7 +36,7 @@ from main import model
 
 from utils import SaveBestModel, save_plots, count_trainable_params
 from constants import Constants
-from schedulers.schedulers import LRScheduler, EarlyStopping, cyclical_lr
+from packages.schedualer import LRScheduler, EarlyStopping, cyclical_lr
 from utils import norms
 
 
