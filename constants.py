@@ -53,7 +53,7 @@ class Constants:
     # sys.path.append(current_path.split('deeponet')[0]+'deeponet/')
     # path='/content/drive/MyDrive/clones'
 
-    path = '/Users/idanversano/Documents/project_geo_deeponet/two_d_single/'
+    path = '/Users/idanversano/Documents/project_geo_deeponet/two_d/'
     eps_fig_path=path+'eps_figures/'
     outputs_path=path+'outputs/'
 
@@ -62,9 +62,9 @@ class Constants:
     test_path= path+'test_set/'
 
 
-    k=40
+    k=80
     h = 1/30
-    batch_size=16
+    batch_size=200
     num_epochs = 6000
   
 

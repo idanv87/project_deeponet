@@ -21,8 +21,8 @@ from constants import Constants
 
 
 
+train_names=extract_path_from_dir(Constants.path+'polygons/')
 test_names=[Constants.path+'polygons/10_115000.pt']
-train_names=[Constants.path+'polygons/10_115000.pt']
 # train_names=list(set(extract_path_from_dir(Constants.path+'polygons/'))-set(test_names))
 
 def generate_data(names,  save_path, number_samples,seed=0):
@@ -78,18 +78,35 @@ def generate_data(names,  save_path, number_samples,seed=0):
 # for x in X_test:
 #     ax.plot(x[1],'b')
 
-train_data=extract_path_from_dir(Constants.train_path)
+
 test_data=extract_path_from_dir(Constants.test_path)
+s_test=[torch.load(f) for f in test_data]
+X_test=[s[0] for s in s_test]
+Y_test=[s[1] for s in s_test]
+test_dataset = SonarDataset(X_test, Y_test)
+test_dataloader=create_loader(test_dataset, batch_size=4, shuffle=False, drop_last=True)
+
+inp, out=next(iter(test_dataset))
+
+model=geo_deeponet( 2, inp[1].shape[0], inp[2].shape[0],inp[4].shape[0])
+
+# model=Deeponet( 2, inp[1].shape[0])
+
+inp, out=next(iter(test_dataloader))
+model(inp)
+print(f" num of model parameters: {count_trainable_params(model)}")
+
+train_data=extract_path_from_dir(Constants.train_path)
+
 start=time.time()
 s_train=[torch.load(f) for f in train_data]
 print(f"loading torch file take {time.time()-start}")
-s_test=[torch.load(f) for f in test_data]
+
 
 
 X_train=[s[0] for s in s_train]
 Y_train=[s[1] for s in s_train]
-X_test=[s[0] for s in s_test]
-Y_test=[s[1] for s in s_test]
+
 
 
 
@@ -113,17 +130,5 @@ if True:
     train_dataloader = create_loader(train_dataset, batch_size=Constants.batch_size, shuffle=True, drop_last=False)
     val_dataloader=create_loader(val_dataset, batch_size=Constants.batch_size, shuffle=True, drop_last=False)
 
-test_dataset = SonarDataset(X_test, Y_test)
-test_dataloader=create_loader(test_dataset, batch_size=4, shuffle=False, drop_last=True)
-
-inp, out=next(iter(test_dataset))
-
-# model=geo_deeponet( 2, inp[1].shape[0], inp[2].shape[0],inp[4].shape[0])
-
-model=Deeponet( 2, inp[1].shape[0])
-
-inp, out=next(iter(test_dataloader))
-model(inp)
-print(f" num of model parameters: {count_trainable_params(model)}")
 # model([X[0].to(Constants.device),X[1].to(Constants.device)])
 

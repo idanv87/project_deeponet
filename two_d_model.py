@@ -13,7 +13,7 @@ import sys
 
 
 class fc(torch.nn.Module):
-    def __init__(self, input_shape, output_shape, num_layers, activation_func, activation_last):
+    def __init__(self, input_shape, output_shape, num_layers, activation_func=torch.nn.Tanh(), activation_last=True):
         super().__init__()
         self.activation_last=activation_last
         self.input_shape = input_shape
@@ -78,8 +78,8 @@ class geo_deeponet(nn.Module):
     def __init__(self, dim, f_dim, translation_dim, angle_dim):
         super().__init__()
         n_layers = 4
-        branch_width=80
-        trunk_width=80
+        branch_width=60
+        trunk_width=60
         # self.n = p
         self.alpha = nn.Parameter(torch.tensor(0.))
         self.branch1 = fc(f_dim, branch_width, n_layers,activation_last=False)
@@ -87,19 +87,19 @@ class geo_deeponet(nn.Module):
         self.branch3= fc(translation_dim, branch_width, n_layers,activation_last=False)
         self.trunk1 = fc(dim, trunk_width,  n_layers, activation_last=True)
 
-        self.c_layer = fc( branch_width, trunk_width, n_layers, activation_last=False)
+        self.c_layer = fc( 2*branch_width, trunk_width, n_layers, activation_last=False)
         # self.c2_layer =fc( angle_dim+translation_dim, 1, n_layers, False) 
-        self.c2_layer =fc( f_dim+dim, 1, n_layers, False) 
+        self.c2_layer =fc( f_dim+dim+angle_dim, 1, n_layers, activation_last=False) 
 
 
 
     def forward(self, X):
         y,f,translation,m_y, angle=X
-        # branch = self.c_layer(  torch.cat((self.branch1(f),self.branch3(translation), self.branch2(angle)), dim=1))
-        branch = self.c_layer(self.branch1(f))
+        # branch = self.c_layer(  torch.cat((self.branch1(f), self.branch2(angle)), dim=1))
+        branch = self.c_layer( torch.cat((self.branch1(f), self.branch2(angle)), dim=1))
         trunk = self.trunk1(y)
         # alpha=torch.squeeze(self.c2_layer(torch.cat((translation,angle),dim=1)),dim=1)
-        alpha = torch.squeeze(self.c2_layer(torch.cat((f,y),dim=1)))
+        alpha = torch.squeeze(self.c2_layer(torch.cat((f,y, angle),dim=1)))
         return torch.sum(branch*trunk, dim=-1, keepdim=False)+alpha
         
 

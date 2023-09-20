@@ -2,7 +2,7 @@ import os
 import sys
 import math
 from matplotlib.ticker import ScalarFormatter
-
+import time
 
 from scipy.stats import qmc
 import matplotlib.pyplot as plt
@@ -25,19 +25,19 @@ from two_d_model import geo_deeponet, Deeponet
 
 
 
-# model=geo_deeponet( 2, 77,2, 99)
-model=Deeponet(2,77)
+model=geo_deeponet( 2, 77,2, 99)
+# model=Deeponet(2,77)
 experment_path=Constants.path+'runs/'
 best_model=torch.load(experment_path+'best_model.pth')
 model.load_state_dict(best_model['model_state_dict'])
 
-# hint_names=[Constants.path+'hints_polygons/10_115000.pt']
-hint_names=[Constants.path+'polygons/50_115000.pt']
+hint_names=[Constants.path+'hints_polygons/80_tta_2_115000.pt']
+# hint_names=[Constants.path+'polygons/10_115050.pt']
 source_domain=torch.load(hint_names[0])
 domain=source_domain
 x_domain=domain['interior_points'][:,0]
 y_domain=domain['interior_points'][:,1]
-angle_fourier=domain['angle_fourier']
+angle=domain['angle_fourier']
 translation=domain['translation']
 L=domain['M']
 sigma=0.1
@@ -50,77 +50,72 @@ J=20
 # J=5
 
 def deeponet(model, func):
-    X_test_i=[]
-    Y_test_i=[]
-    a=expand_function(func(x_domain, y_domain), domain )
-    for j in range(domain['interior_points'].shape[0]):
-        X_test_i.append([
-                        torch.tensor([x_domain[j],y_domain[j]], dtype=torch.float32), 
-                         torch.tensor(a, dtype=torch.float32),
-                         torch.tensor(translation, dtype=torch.float32),
-                         torch.tensor(0, dtype=torch.float32),
-                         torch.tensor(angle_fourier, dtype=torch.float32)
-                         ])
-        Y_test_i.append(torch.tensor(0, dtype=torch.float32))
+    # a=expand_function(func(x_domain   , y_domain), domain )
+    a=expand_function(func,domain)
 
-    
-    test_dataset = SonarDataset(X_test_i, Y_test_i)
-    test_dataloader=create_loader(test_dataset, batch_size=1, shuffle=False, drop_last=False)
+    with torch.no_grad():
+       
+        y1=torch.tensor(domain['interior_points'],dtype=torch.float32).reshape(domain['interior_points'].shape)
+        a1=torch.tensor(a.reshape(1,a.shape[0]),dtype=torch.float32).repeat(y1.shape[0],1)
+        tran1=torch.tensor(translation.reshape(1,translation.shape[0]),dtype=torch.float32).repeat(y1.shape[0],1)
+        angle1=torch.tensor(angle.reshape(1,angle.shape[0]),dtype=torch.float32).repeat(y1.shape[0],1)
+        moments1=angle*0
 
-    coords=[]
-    prediction=[]
-    with torch.no_grad():    
-        for input,output in test_dataloader:
-            coords.append(input[0])
-            prediction.append(model(input))
+        pred2=model([y1, a1, tran1,moments1,angle1])
+    return pred2.numpy()
 
-    coords=np.squeeze(torch.cat(coords,axis=0).numpy())
-    prediction=torch.cat(prediction,axis=0).numpy()
-
-    return prediction
-
+   
 def network(model, func, J, J_in, hint_init):
     A = (-L - Constants.k* scipy.sparse.identity(L.shape[0]))
-    ev,V=scipy.sparse.linalg.eigs(-L,k=15,return_eigenvectors=True,which="SR")
 
+    ev,V=scipy.sparse.linalg.eigs(-L,k=15,return_eigenvectors=True,which="SR")
+    assert ev[0]<Constants.k
     b=func(x_domain, y_domain)
     solution=scipy.sparse.linalg.spsolve(A, b)
-    predicted=deeponet(model, func)
+    predicted=deeponet(model, b)
     # print(np.linalg.norm(solution-predicted)/np.linalg.norm(solution))
 
 
     if hint_init:
-        x=deeponet(model, func)
+        x=deeponet(model, b)
     else:
-        x=x=deeponet(model, func)*0
+        x=x=deeponet(model, b)*0
 
     res_err=[]
     err=[]
     k_it=0
 
-    for i in range(200):
+    for i in range(1000):
         x_0 = x
         k_it += 1
         theta=1
        
         if (((k_it % J) in J_in) and (k_it > J_in[-1])):
             
-            factor = np.max(abs(sample[0]))/np.max(abs(A@x_0-b))
+            # factor = np.max(abs(sample[0]))/np.max(abs(A@x_0-b))
+            x1=A@x_0-b
+            sigma=np.sqrt(np.var(x1))
+            factor1=np.sqrt(2)*0.1/sigma
             # factor=np.max(abs(grf(F, 1)))/np.max(abs(A@x_0-b))
-            x_temp = x_0*factor + \
-            deeponet(model, interpolation_2D(x_domain,y_domain,(b-A@x_0)*factor )) 
+            factor=factor1
+ 
+            x_temp = x_0*factor + deeponet(model, (b-A@x_0)*factor )
+          
+            
+            # deeponet(model, interpolation_2D(x_domain,y_domain,(b-A@x_0)*factor )) 
             
             x=x_temp/factor
             
             # x = x_0 + deeponet(model, scipy.interpolate.interp1d(domain[1:-1],(A@x_0-b)*factor ))/factor
 
         else:    
+            start=time.time()
             x = Gauss_zeidel(A.todense(), b, x_0, theta)[0]
+            # print(f'GS iteration in time =={time.time()-start}')
 
 
-
-       
-        print(np.linalg.norm(A@x-b)/np.linalg.norm(b))
+        if (k_it %10)==0:
+                print(f'error:{np.linalg.norm(A@x-b)/np.linalg.norm(b)}, iter={k_it}')
         res_err.append(np.linalg.norm(A@x-b)/np.linalg.norm(b))
         err.append(np.linalg.norm(x-solution)/np.linalg.norm(solution))
         if (res_err[-1] < 1e-13) and (err[-1] < 1e-13):

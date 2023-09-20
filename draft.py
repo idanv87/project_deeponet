@@ -115,21 +115,25 @@ def generate_domains(S,T,n1,n2):
             Y=[]
             for j in range(len(lengeths)):
                     if lengeths[j]>0:
-                        p=0.5*np.array([x1[j]+0.5,y1[j]+0.5])
-                        new_p=S@p+T
+                        p=0.5*np.array([x1[j]+0.5,y1[j]+0.8])
+                        new_p=S@(p-np.array([0.5,0.5]))+np.array([0.5,0.5])+T
                         X.append(new_p[0])
                         Y.append(new_p[1])
             try:    
                 
                 # domain=Polygon(np.array([[0,0],[1,0],[2,1],[0,1]])) 
                 domain=Annulus(np.vstack((np.array(X),np.array(Y))).T, T)
+                # domain.plot(domain.generators)
+                plt.xlim([0,1])
+                # plt.ylim([0,1])
+                # plt.show()
                 # domain.create_mesh(0.05)
                 # domain.save(Constants.path+'hints_polygons/005_1150'+str(n1)+str(n2)+'.pt')
-                domain.create_mesh(1/50)
+                domain.create_mesh(1/80)
+                # # domain.plot_geo(domain.X, domain.cells, domain.geo)
+                # domain.save(Constants.path+'polygons/10_1150'+str(n1)+str(n2)+'.pt')
                 # domain.plot_geo(domain.X, domain.cells, domain.geo)
-                domain.save(Constants.path+'polygons/50_1150'+str(n1)+str(n2)+'.pt')
-                domain.plot_geo(domain.X, domain.cells, domain.geo)
-                # domain.save(Constants.path+'hints_polygons/30_1150'+str(n1)+str(n2)+'.pt')
+                domain.save(Constants.path+'hints_polygons/80_tta_2_1150'+str(n1)+str(n2)+'.pt')
                 print('sucess')
                 
             except:
@@ -143,13 +147,15 @@ if __name__=='__main__':
     # base_domain=Polygon(np.array([[0,0],[1,0],[1,1],[0,1]]))
     # base_domain.create_mesh(0.1)
     # base_domain.save(Constants.path+'base_polygon/base_rect.pt')
-
+    
     for i,theta in enumerate(np.linspace(0,2*math.pi,10)):
         for j,T in enumerate(0.5*grf(list(range(2)),10)):
-           if j==0: 
-            S=np.array([[math.cos(theta), math.sin(theta)],[-math.sin(theta), math.cos(theta)]])
-            generate_domains(S,T,i,j)
-            sys.exit()
+            if j==0:
+                theta=2.4
+                S=np.array([[math.cos(theta), math.sin(theta)],[-math.sin(theta), math.cos(theta)]])
+                generate_domains(S,T,i,j)
+                sys.exit()
+            
 
 # base_rect=torch.load(Constants.path+'base_polygon/base_rect.pt')
 
