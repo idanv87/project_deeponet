@@ -87,22 +87,36 @@ class geo_deeponet(nn.Module):
         self.branch3= fc(translation_dim, branch_width, n_layers,activation_last=False)
         self.trunk1 = fc(dim, trunk_width,  n_layers, activation_last=True)
 
-        self.c_layer = fc( 2*branch_width, trunk_width, n_layers, activation_last=False)
+        self.mha=torch.nn.MultiheadAttention(embed_dim=branch_width, num_heads=10, bias=True, batch_first=True)
+
+        self.c_layer = fc( 3*branch_width, trunk_width, n_layers, activation_last=False)
         # self.c2_layer =fc( angle_dim+translation_dim, 1, n_layers, False) 
-        self.c2_layer =fc( f_dim+dim+angle_dim, 1, n_layers, activation_last=False) 
+        self.c2_layer =fc( f_dim+dim+angle_dim+translation_dim, 1, n_layers, activation_last=False) 
 
 
 
     def forward(self, X):
         y,f,translation,m_y, angle=X
-        # branch = self.c_layer(  torch.cat((self.branch1(f), self.branch2(angle)), dim=1))
-        branch = self.c_layer( torch.cat((self.branch1(f), self.branch2(angle)), dim=1))
+
+        # branch_temp=self.mha(self.branch1(f), self.branch2(angle), self.branch3(translation))[0]
+        branch = self.c_layer( torch.cat((self.branch1(f), self.branch2(angle), self.branch3(translation)), dim=1))
+        # branch=self.c_layer(branch_temp)
         trunk = self.trunk1(y)
         # alpha=torch.squeeze(self.c2_layer(torch.cat((translation,angle),dim=1)),dim=1)
-        alpha = torch.squeeze(self.c2_layer(torch.cat((f,y, angle),dim=1)))
+        alpha = torch.squeeze(self.c2_layer(torch.cat((f,y, angle, translation),dim=1)))
         return torch.sum(branch*trunk, dim=-1, keepdim=False)+alpha
         
 
+# torch.manual_seed(0)
+# x=torch.rand(1,4)
+# y=torch.rand(1,4)
+# z=torch.rand(1,4)
+# y=torch.rand(1,4)
+# # # b=torch.cat((x,x), dim=0)
+# # b=x
+# L=torch.nn.MultiheadAttention(embed_dim=4, num_heads=2, bias=True)
+# # print(x)
+# print(L(x,y,z)[0].shape)
 
 
 

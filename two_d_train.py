@@ -34,9 +34,9 @@ from main import (
 from main import model
 
 
-from utils import SaveBestModel, save_plots, count_trainable_params
+from utils import  save_plots, count_trainable_params
 from constants import Constants
-from packages.schedualer import LRScheduler, EarlyStopping, cyclical_lr
+from packages.schedualer import LRScheduler, EarlyStopping, cyclical_lr, SaveBestModel
 from utils import norms
 
 
@@ -260,6 +260,8 @@ for epoch in range(epochs):
     test_epoch_loss, test_epoch_acc  = predict(model, test_dataloader, test_dataset, criterion)
 
     lr_scheduler(val_epoch_loss)
+    early_stopping(val_epoch_loss) 
+    save_best_model(val_epoch_loss, epoch, model, optimizer, criterion)
     
 
     train_loss.append(train_epoch_loss)
@@ -274,7 +276,7 @@ for epoch in range(epochs):
 
     test_accuracy.append(test_epoch_acc)
 
-    save_best_model(val_epoch_loss, epoch, model, optimizer, criterion)
+
     print("-" * 50)
     print(f"Train Loss: {train_epoch_loss:4e}")
     print(f"Val Loss: {val_epoch_loss:.4e}")

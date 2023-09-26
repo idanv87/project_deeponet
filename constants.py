@@ -53,8 +53,8 @@ class Constants:
     # sys.path.append(current_path.split('deeponet')[0]+'deeponet/')
     # path='/content/drive/MyDrive/clones'
 
-    path = '/Users/idanversano/Documents/project_geo_deeponet/two_d/'
-    eps_fig_path='/Users/idanversano/Documents/project_geo_deeponet/tex/figures/two_d/'
+    path = '/Users/idanversano/Documents/project_geo_deeponet/two_d_rotate/'
+    eps_fig_path='/Users/idanversano/Documents/project_geo_deeponet/tex/figures/two_d_rotate/'
     outputs_path=path+'outputs/'
 
 
@@ -65,8 +65,8 @@ class Constants:
 
     k=80
     h = 1/30
-    batch_size=200
-    num_epochs = 6000
+    batch_size=400
+    num_epochs = 10000
   
 
 
@@ -122,3 +122,5 @@ if __name__=='__main__':
     plt.show(block=False)
 
   
+
+

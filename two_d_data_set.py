@@ -9,6 +9,30 @@ from torch.utils.data import Dataset, Subset
 
 
 
+
+class MyDataset(Dataset):
+    def __init__(self, names):
+        self.data_len=len(names)
+        self.names = names
+        
+        
+   
+
+
+    def __len__(self):
+        # this should return the size of the dataset
+        return self.data_len
+
+    def __getitem__(self, idx):
+
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+            
+
+        sample=torch.load(self.names[idx])
+        return sample[0], sample[1]
+
+
 class SonarDataset(Dataset):
     def __init__(self, X, Y):
         self.data_len=len(X)

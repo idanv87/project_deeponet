@@ -1,3 +1,5 @@
+
+
 import pandas as pd
 from sklearn.metrics import pairwise_distances
 import random
@@ -22,7 +24,10 @@ import torch
 
 
 from constants import Constants
-
+def calc_angle(u,v):
+    v=np.array(v)
+    u=np.array(u)
+    return np.arccos(np.dot(u,v)/(np.linalg.norm(u)*np.linalg.norm(v)))
 class norms:
     def __init__(self): 
         pass
@@ -162,33 +167,6 @@ def save_file(f, dir, name):
     torch.save(f, dir + name + ".pt")
     return dir + name + ".pt"
 
-
-class SaveBestModel:
-    """
-    Class to save the best model while training. If the current epoch's
-    validation loss is less than the previous least less, then save the
-    model state.
-    """
-
-    def __init__(self, log_path, best_valid_loss=float("inf")):
-        self.best_valid_loss = best_valid_loss
-        self.path = log_path
-
-    def __call__(self, current_valid_loss, epoch, model, optimizer, criterion):
-        if current_valid_loss < self.best_valid_loss:
-            self.best_valid_loss = current_valid_loss
-            print(f"\nBest validation loss: {self.best_valid_loss}")
-            print(f"\nSaving best model for epoch: {epoch+1}\n")
-
-            torch.save(
-                {
-                    "epoch": epoch + 1,
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "loss": criterion,
-                },
-                self.path+'best_model.pth',
-            )
 
 
 def save_plots(train_loss, valid_loss, test_loss, metric_type: str, dir_path):
@@ -343,17 +321,41 @@ def closest(set1,p):
     return set1[temp], temp
 
 
-def fig1(test_names):
+def fig1():
    
-    fig,ax=plt.subplots()
+    fig,ax=plt.subplots(1)
+    # fig.gca().set_aspect('equal', adjustable='box')   
     train_names=extract_path_from_dir(Constants.path+'polygons/')
-    x,y= Polygon(((0,0),(1,0),(1,1),(0,1))).exterior.xy
+    test_names=extract_path_from_dir(Constants.path+'hints_polygons/')
+    x,y= poly(((0,0),(1,0),(1,1),(0,1))).exterior.xy
     ax.plot(x,y,color='black', label='train', alpha=0.4)
-    [Plot_Polygon(torch.load(name)['generators'],ax=ax, color='black',alpha=0.7,linewidth=0.5) for name in train_names[::2]]
-    [Plot_Polygon(torch.load(name)['generators'],ax=ax, color='blue', linestyle='dashed', label='test') for name in test_names]
-    
-
-    fig.gca().set_aspect('equal', adjustable='box')    
+    [Plot_Polygon(torch.load(name)['generators'],ax=ax, color='black',alpha=0.7,linewidth=0.5) for name in train_names[::]]
+    [Plot_Polygon(torch.load(name)['generators'],ax=ax, color='blue',linewidth=0.5, linestyle='dashed', label='test') for name in test_names]
+    # [ax[0].scatter(torch.load(name)['generators'][0,0], torch.load(name)['generators'][0,1], color='black',alpha=0.7,linewidth=0.5) for name in train_names[::]]
+    # [ax[0].scatter(torch.load(name)['generators'][1,0], torch.load(name)['generators'][1,1], color='red',alpha=0.7,linewidth=0.5) for name in train_names[::]]
     ax.legend(loc='upper right', shadow=True)
+    # [ax[0].scatter(list(range(len(torch.load(name)['angle_fourier']))),torch.load(name)['angle_fourier'], color='black') for name in train_names]
+
+
+     
+
     fig.savefig(Constants.eps_fig_path+'train_test.eps', format='eps', bbox_inches='tight')
     plt.show(block=False)   
+
+
+def fig2(test_names=[]):
+   
+    fig,ax=plt.subplots(2)
+    train_names=extract_path_from_dir(Constants.path+'polygons/')
+
+    [ax[0].plot(torch.load(name)['angle_fourier'], color='black',alpha=0.7,linewidth=0.5) for name in train_names[::]]
+    [ax[1].plot(torch.load(name)['angles']) for name in train_names[::]]
+    # fig.gca().set_aspect('equal', adjustable='box')    
+
+    fig.savefig(Constants.eps_fig_path+'train_test.eps', format='eps', bbox_inches='tight')
+    plt.show(block=False)   
+
+if __name__=='__main__':
+    fig1()
+    # print(np.arctan2(1/4,1/4)+math.pi)
+    plt.show()

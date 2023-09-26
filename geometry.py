@@ -64,7 +64,7 @@ class Polygon:
         self.generators = generators
         self.n=self.generators.shape[0]
         self.geo = dmsh.Polygon(self.generators)
-        self.fourier_coeff = self.fourier()
+        self.fourier_coeff, self.lengths, self.angles = self.fourier()
         
         
 
@@ -141,28 +141,35 @@ class Polygon:
             return False
 
     def save(self, path):
-        assert self.is_legit()
-        data = {
-            "vertices":self.vertices,
-            "ev": self.ev,
-            "principal_ev": self.ev[-1], 
-            "interior_points": self.interior_points,
-            "hot_points": self.hot_points,
-            "hot_indices":self.hot_indices,
-            # "hot_points": self.hot_points[np.lexsort((self.hot_points[:,1], self.hot_points[:,0]))],
-            "generators": self.generators,
-            "M": self.M[self.interior_indices][:, self.interior_indices],
-            'radial_basis':self.radial_functions,
-             'angle_fourier':self.fourier_coeff,
-             'translation':self.T,
-             'cells':self.cells,
-             'X':self.X,
-             'geo':self.geo,
-             'V':self.V,
-            "legit": True,
-            'type': 'polygon'
-        }
-        torch.save(data, path)
+        try:    
+            assert self.is_legit()
+            data = {
+                "vertices":self.vertices,
+                "ev": self.ev,
+                "principal_ev": self.ev[-1], 
+                "interior_points": self.interior_points,
+                "hot_points": self.hot_points,
+                "hot_indices":self.hot_indices,
+                # "hot_points": self.hot_points[np.lexsort((self.hot_points[:,1], self.hot_points[:,0]))],
+                "generators": self.generators,
+                "M": self.M[self.interior_indices][:, self.interior_indices],
+                'radial_basis':self.radial_functions,
+                'angle_fourier':self.fourier_coeff,
+                'translation':self.T,
+                'cells':self.cells,
+                'X':self.X,
+                'geo':self.geo,
+                'V':self.V,
+                "legit": True,
+                'type': 'polygon'
+            }
+            torch.save(data, path)
+        except:
+            data={"generators":self.generators,
+                   'angle_fourier':self.fourier_coeff,
+                   'lengths':self.lengths,
+                   'angles':self.angles}
+            torch.save(data, path)
 
     def plot2(self):
         plt.scatter(self.interior_points[:, 0],
@@ -179,12 +186,14 @@ class Polygon:
         y1=self.generators[:,1]
         dx=[np.linalg.norm(np.array([y1[(k+1)%y1.shape[0]]-y1[k],x1[(k+1)%x1.shape[0]]-x1[k]])) for k in range(x1.shape[0])]
 
-        theta=[np.arctan2(y1[(k+1)%y1.shape[0]]-y1[k],x1[(k+1)%x1.shape[0]]-x1[k]) for k in range(x1.shape[0])]
+        # theta=[np.arctan2(y1[(k+1)%y1.shape[0]]-y1[k],x1[(k+1)%x1.shape[0]]-x1[k]) for k in range(x1.shape[0])]
+        theta=[calc_angle([x1[(k+1)%x1.shape[0]]-x1[k],y1[(k+1)%y1.shape[0]]-y1[k]],[1,0]) for k in range(x1.shape[0])]
 
         l=[h/np.sum(dx) for h in dx]
-
+ 
         coeff=step_fourier(l,theta)
-        return coeff
+        return coeff, l, theta
+    
     @classmethod
     def plot(cls,generators, ax=None, title='no title was given'):
         assert generators.shape[1]==2
@@ -226,7 +235,7 @@ class Annulus(Polygon):
         self.generators = generators
         self.n=self.generators.shape[0]
         self.geo =dmsh.Rectangle(0, 1, 0, 1)- dmsh.Polygon(self.generators)
-        self.fourier_coeff = self.fourier()
+        self.fourier_coeff, self.lengths, self.angles = self.fourier()
         self.T=T
 
 

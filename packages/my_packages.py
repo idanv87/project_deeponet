@@ -1,3 +1,4 @@
+from typing import Any
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,7 +6,7 @@ import matplotlib.tri as tri
 from scipy.interpolate import Rbf
 from tabulate import tabulate
 import scipy
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon as poly
 import shapely.plotting
 
 class norms:
@@ -122,12 +123,12 @@ def gmres(A, b, x0, nmax_iter, tol):
 
         C=np.dot(np.asarray(q).transpose(), result) + x0
         x.append(C)
+   
         if (np.linalg.norm(A@C-b_start)/np.linalg.norm(b_start))<tol:
-            return C,k
+            return C,k, np.linalg.norm(A@C-b_start)/np.linalg.norm(b_start)
 
 
-    return C, k
-
+    return C, k, np.linalg.norm(A@C-b_start)/np.linalg.norm(b_start)
 
 
 class Plotter:
@@ -224,6 +225,26 @@ def Least_squares(A,b):
     return res.x, np.linalg.norm(A@res.x-b)/np.linalg.norm(b)
 
 def Plot_Polygon(v,ax, **kwargs):
-    polygon = Polygon(v)
+    polygon = poly(v)
     xe,ye = polygon.exterior.xy
     ax.plot(xe,ye, **kwargs)
+
+class Linear_solver:
+    def __init__(self, type=None, verbose=False):
+        self.type=type
+        self.verbose=verbose
+
+    def __call__(self, A,b): 
+        if self.type==None:
+            return scipy.sparse.linalg.spsolve(A,b)
+        if self.type=='gmres':
+            x,j,e=gmres(A,b,b*0,nmax_iter=100, tol=1e-2)
+            if self.verbose:
+                print(f'gmres ended after {j} iterations with error {e}')
+            return x
+
+        # # class linear solvers
+#     else:
+#          x,j,e=gmres(A,b,b*0,nmax_iter=100, tol=1e-1)
+#          print(f'gmres ended after {j} iterations with error {e}')
+#          return x

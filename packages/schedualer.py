@@ -15,6 +15,7 @@ def cyclical_lr(stepsize, min_lr=3e-4, max_lr=3e-3):
         return max(0, (1 - x)) * scaler(cycle)
 
     return lr_lambda
+
 class LRScheduler():
     """
     Learning rate scheduler. If the validation loss does not decrease for the 
@@ -22,7 +23,7 @@ class LRScheduler():
     by given `factor`.
     """
     def __init__(
-        self, optimizer, patience=5, min_lr=1e-6, factor=0.5
+        self, optimizer, patience=5, min_lr=5e-5, factor=0.5
     ):
         """
         new_lr = old_lr * factor
@@ -52,7 +53,7 @@ class EarlyStopping:
     certain epochs.
     """
 
-    def __init__(self, patience=10, min_delta=0):
+    def __init__(self, patience=10, min_delta=7e-2):
         """
         :param patience: how many epochs to wait before stopping when loss is
                not improving
@@ -79,6 +80,33 @@ class EarlyStopping:
                 print("INFO: Early stopping")
                 self.early_stop = True
 
+
+class SaveBestModel:
+    """
+    Class to save the best model while training. If the current epoch's
+    validation loss is less than the previous least less, then save the
+    model state.
+    """
+
+    def __init__(self, log_path, best_valid_loss=float("inf")):
+        self.best_valid_loss = best_valid_loss
+        self.path = log_path
+
+    def __call__(self, current_valid_loss, epoch, model, optimizer, criterion):
+        if current_valid_loss < self.best_valid_loss:
+            self.best_valid_loss = current_valid_loss
+            print(f"\nBest validation loss: {self.best_valid_loss}")
+            print(f"\nSaving best model for epoch: {epoch+1}\n")
+
+            torch.save(
+                {
+                    "epoch": epoch + 1,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "loss": criterion,
+                },
+                self.path+'best_model.pth',
+            )
 
 
 # for g in optim.param_groups:
